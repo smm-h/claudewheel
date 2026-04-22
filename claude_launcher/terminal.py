@@ -17,7 +17,9 @@ from .constants import (ALT_SCREEN_ON, ALT_SCREEN_OFF, HIDE_CURSOR, SHOW_CURSOR,
 
 class Terminal:
     def __init__(self):
-        self.fd = sys.stdin.fileno()
+        # Open /dev/tty directly so we work even when stdin is piped
+        self._tty_file = open("/dev/tty", "r+b", buffering=0)
+        self.fd = self._tty_file.fileno()
         self.old_attrs = None
         self.rows = 24
         self.cols = 80
@@ -37,15 +39,13 @@ class Terminal:
         tty.setcbreak(self.fd)  # cbreak, not raw -- lets Ctrl-C generate SIGINT
         self._in_raw = True
         self.rows, self.cols = self.get_size()
-        sys.stdout.write(ALT_SCREEN_ON + HIDE_CURSOR + CLEAR_SCREEN)
-        sys.stdout.flush()
+        self._write_tty(ALT_SCREEN_ON + HIDE_CURSOR + CLEAR_SCREEN)
         atexit.register(self.exit_raw)
 
     def exit_raw(self) -> None:
         if self._in_raw and self.old_attrs is not None:
             termios.tcsetattr(self.fd, termios.TCSAFLUSH, self.old_attrs)
-            sys.stdout.write(SHOW_CURSOR + ALT_SCREEN_OFF)
-            sys.stdout.flush()
+            self._write_tty(SHOW_CURSOR + ALT_SCREEN_OFF)
             self._in_raw = False
 
     def read_key(self) -> str:
@@ -85,8 +85,13 @@ class Terminal:
             return "CTRL_C"
         return ch
 
+    def _write_tty(self, text: str) -> None:
+        """Write directly to the TTY device."""
+        self._tty_file.write(text.encode())
+        self._tty_file.flush()
+
     def write(self, text: str) -> None:
-        sys.stdout.write(text)
+        self._write_tty(text)
 
     def flush(self) -> None:
-        sys.stdout.flush()
+        self._tty_file.flush()
