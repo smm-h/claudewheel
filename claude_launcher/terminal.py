@@ -27,8 +27,8 @@ class Terminal:
 
     def get_size(self) -> tuple[int, int]:
         try:
-            packed = fcntl.ioctl(self.fd, termios.TIOCGWINSZ, b"\x00" * 4)
-            rows, cols = struct.unpack("hh", packed)
+            packed = fcntl.ioctl(self.fd, termios.TIOCGWINSZ, b"\x00" * 8)
+            rows, cols, _, _ = struct.unpack("hhhh", packed)
             return rows, cols
         except OSError:
             size = shutil.get_terminal_size()
