@@ -38,19 +38,24 @@ class Segment:
         return fuzzy_rank(self.search_buffer, self.options)
 
     def cycle(self, direction: int) -> None:
-        """Move selection up (+1) or down (-1) through options."""
+        """Move selection up (+1) or down (-1) through options.
+
+        The ring has n+1 positions: [-1, 0, 1, ..., n-1] where -1 is the
+        blank/unselected state. Cycling wraps through all positions including
+        blank, so the user can always return to an unselected state.
+        """
         if not self.options:
             return
         n = len(self.options)
-        if self.selected_idx < 0:
-            # First interaction: jump to start or end depending on direction
-            self.selected_idx = 0 if direction > 0 else n - 1
-            return
-        new = self.selected_idx + direction
+        # Ring of size n+1: positions are -1, 0, 1, ..., n-1
+        # Map -1 -> 0, 0 -> 1, ..., n-1 -> n for ring arithmetic
+        ring_pos = self.selected_idx + 1  # now in [0, n]
+        ring_pos += direction
         if self.wrap:
-            self.selected_idx = new % n
+            ring_pos %= (n + 1)
         else:
-            self.selected_idx = max(0, min(n - 1, new))
+            ring_pos = max(0, min(n, ring_pos))
+        self.selected_idx = ring_pos - 1  # back to [-1, n-1]
 
     def select_value(self, val: str) -> bool:
         """Select an option by its string value. Returns True if found."""

@@ -125,11 +125,16 @@ class Renderer:
             below: list[str] = opts
         else:
             opts = seg.options
-            sel_idx = seg.selected_idx if seg.selected_idx >= 0 else 0
-            # Options before selected go above (reversed so closest is nearest)
-            above = list(reversed(opts[:sel_idx]))
-            # Options after selected go below
-            below = opts[sel_idx + 1:]
+            if seg.selected_idx < 0:
+                # Nothing selected: all options fan out below
+                above = []
+                below = opts
+            else:
+                sel_idx = seg.selected_idx
+                # Options before selected go above (reversed so closest is nearest)
+                above = list(reversed(opts[:sel_idx]))
+                # Options after selected go below
+                below = opts[sel_idx + 1:]
 
         # Render above options
         for offset, opt_text in enumerate(above, start=1):
