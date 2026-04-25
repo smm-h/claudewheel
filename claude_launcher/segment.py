@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import json
+import subprocess
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import ConfigManager
 from .fuzzy import fuzzy_rank
+
+NPM_CACHE_TTL = 3600  # 1 hour
 
 
 @dataclass
@@ -23,6 +28,7 @@ class Segment:
     required: bool = False
     searchable: bool = False
     tab_advances: bool = True
+    installed: set[str] = field(default_factory=set)  # tracks locally installed options
 
     @property
     def value(self) -> str | None:
@@ -98,6 +104,37 @@ def version_sort_key(version: str) -> list[int]:
     return parts
 
 
+def fetch_npm_versions(state: dict, count: int = 15) -> list[str]:
+    """Fetch recent Claude Code versions from npm, with 1-hour cache in state."""
+    cache = state.get("npm_versions_cache", {})
+    cached_at = cache.get("fetched_at", 0)
+    cached_versions = cache.get("versions", [])
+
+    if time.time() - cached_at < NPM_CACHE_TTL and cached_versions:
+        return cached_versions[-count:]
+
+    try:
+        result = subprocess.run(
+            ["npm", "view", "@anthropic-ai/claude-code", "versions", "--json"],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0:
+            all_versions = json.loads(result.stdout)
+            # Cache the full list
+            state["npm_versions_cache"] = {
+                "fetched_at": time.time(),
+                "versions": all_versions,
+            }
+            return all_versions[-count:]
+    except Exception:
+        pass
+
+    # On failure, use cache even if stale
+    if cached_versions:
+        return cached_versions[-count:]
+    return []
+
+
 def discover_options(options_def: dict, state: dict) -> dict[str, list[str]]:
     """Resolve option lists, running discovery (directory listing, state merge) as needed."""
     resolved = {}
@@ -116,6 +153,23 @@ def discover_options(options_def: dict, state: dict) -> dict[str, list[str]]:
                             reverse=True,
                         )
                         values = entries
+                case "npm_and_local":
+                    local_path = Path(disc["path"]).expanduser()
+                    # Get locally installed versions
+                    installed = set()
+                    if local_path.is_dir():
+                        installed = {e.name for e in local_path.iterdir() if e.is_file()}
+                    # Get available versions from npm
+                    npm_versions = fetch_npm_versions(state, disc.get("count", 15))
+                    # Merge: all npm versions (last N), plus any local-only ones
+                    all_versions = list(npm_versions)
+                    for v in installed:
+                        if v not in all_versions:
+                            all_versions.append(v)
+                    all_versions.sort(key=version_sort_key, reverse=True)
+                    values = all_versions
+                    # Store installed set for build_segment_bar to pick up
+                    resolved[f"_installed_{key}"] = installed
                 case "state_field":
                     # Merge state-tracked values with static defaults, preserving order
                     state_values = state.get(disc["field"], [])
@@ -134,6 +188,8 @@ def build_segment_bar(cfg: ConfigManager) -> SegmentBar:
     """Construct the segment bar from config, applying discovery and last-state restore."""
     enabled = cfg.config.get("enabled_segments", [])
     resolved = discover_options(cfg.options_def, cfg.state)
+    # Persist npm cache to state.json so it survives even if the user quits without launching
+    cfg.save_state()
     segments: list[Segment] = []
 
     for sdef in cfg.segments_def:
@@ -152,6 +208,10 @@ def build_segment_bar(cfg: ConfigManager) -> SegmentBar:
             searchable=sdef.get("searchable", False),
             tab_advances=sdef.get("tab_advances", True),
         )
+        # Attach installed set if discovery produced one (e.g. npm_and_local)
+        installed_key = f"_installed_{sdef['key']}"
+        if installed_key in resolved:
+            seg.installed = resolved[installed_key]
         # Pre-select from last session's config if available
         last = cfg.state.get("last_config", {})
         if sdef["key"] in last:

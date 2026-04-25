@@ -102,8 +102,9 @@ DEFAULT_OPTIONS = {
     "version": {
         "values": [],
         "discovery": {
-            "type": "directory_listing",
+            "type": "npm_and_local",
             "path": "~/.local/share/claude/versions",
+            "count": 15,
         },
     },
     "directory": {
@@ -149,6 +150,7 @@ DEFAULT_THEME_DARK = {
             "focus_bg": "#4e4a2a",
             "focus_fg": "#ffffff",
             "option_fg": "#a8984e",
+            "unavailable_fg": "#555555",
         },
         "directory": {
             "value_fg": "#c8a8e8",
@@ -205,6 +207,7 @@ DEFAULT_THEME_LIGHT = {
             "focus_bg": "#f0e8d0",
             "focus_fg": "#000000",
             "option_fg": "#a89a4a",
+            "unavailable_fg": "#bbbbbb",
         },
         "directory": {
             "value_fg": "#6a3a8a",

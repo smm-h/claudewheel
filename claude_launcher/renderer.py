@@ -83,6 +83,12 @@ class Renderer:
                     buf.append(th.empty_value_fg)
                     buf.append(display_value)
                     buf.append(RESET)
+                elif seg.installed and seg.value not in seg.installed:
+                    # Uninstalled option: render dimly with unavailable color
+                    unavail = sc.get("unavailable_fg", "") or DIM
+                    buf.append(unavail)
+                    buf.append(display_value)
+                    buf.append(RESET)
                 else:
                     buf.append(sc.get("value_fg", ""))
                     buf.append(display_value)
@@ -113,6 +119,7 @@ class Renderer:
         value_col, display_width = self._segment_positions[seg.key]
         sc = self._seg_colors(seg.key)
         option_fg = sc.get("option_fg", DIM)
+        unavail_fg = sc.get("unavailable_fg", "") or DIM
 
         # Determine which options list and selected index to use
         if seg.search_buffer:
@@ -143,7 +150,11 @@ class Renderer:
                 break
             display = self._fit_value(opt_text, seg.min_width, seg.max_width)
             buf.append(move_to(row, value_col))
-            buf.append(option_fg)
+            # Use unavailable color for options not locally installed
+            if seg.installed and opt_text not in seg.installed:
+                buf.append(unavail_fg)
+            else:
+                buf.append(option_fg)
             buf.append(display)
             buf.append(RESET)
 
@@ -154,7 +165,11 @@ class Renderer:
                 break
             display = self._fit_value(opt_text, seg.min_width, seg.max_width)
             buf.append(move_to(row, value_col))
-            buf.append(option_fg)
+            # Use unavailable color for options not locally installed
+            if seg.installed and opt_text not in seg.installed:
+                buf.append(unavail_fg)
+            else:
+                buf.append(option_fg)
             buf.append(display)
             buf.append(RESET)
 

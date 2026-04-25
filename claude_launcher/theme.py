@@ -48,6 +48,8 @@ class ThemeColors:
     search_cursor_fg: str = ""
     search_match_fg: str = ""
     search_no_match_fg: str = ""
+    # Per-segment unavailable color (fallback for segments without their own)
+    unavailable_fg: str = ""
 
 
 def parse_theme(theme_dict: dict) -> ThemeColors:
@@ -61,6 +63,7 @@ def parse_theme(theme_dict: dict) -> ThemeColors:
             "focus_bg": _hex_to_bg(seg_theme.get("focus_bg")),
             "focus_fg": _hex_to_fg(seg_theme.get("focus_fg")),
             "option_fg": _hex_to_fg(seg_theme.get("option_fg")),
+            "unavailable_fg": _hex_to_fg(seg_theme.get("unavailable_fg")),
         }
 
     search = theme_dict.get("search", {})
