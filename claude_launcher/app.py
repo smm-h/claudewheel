@@ -6,7 +6,7 @@ import signal
 import sys
 
 from .config import ConfigManager
-from .segment import Segment, build_segment_bar
+from .segment import Segment, build_segment_bar, evaluate_requires
 from .terminal import Terminal
 from .theme import parse_theme
 from .renderer import Renderer
@@ -41,6 +41,7 @@ class App:
         signal.signal(signal.SIGHUP, on_term)
 
         try:
+            evaluate_requires(self.bar)
             self.renderer.render(self.bar)
             while self.running:
                 try:
@@ -52,6 +53,7 @@ class App:
                     return self.bar.get_selections()
                 elif action == "quit":
                     return None
+                evaluate_requires(self.bar)
                 self.renderer.render(self.bar, self._flash)
                 self._flash = ""  # Clear flash after one render cycle
         finally:

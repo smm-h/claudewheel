@@ -140,7 +140,14 @@ DEFAULT_OPTIONS = {
         },
     },
     "mcp": {"values": ["default", "strict"]},
-    "permissions": {"values": ["bypass", "default", "plan", "auto"]},
+    "permissions": {
+        "values": [
+            "bypass",
+            "default",
+            "plan",
+            {"value": "auto", "requires": {"version": ">=2.1.110"}},
+        ],
+    },
 }
 
 DEFAULT_STATE = {
@@ -203,6 +210,7 @@ DEFAULT_THEME_DARK = {
             "focus_bg": "#4e2a2a",
             "focus_fg": "#ffffff",
             "option_fg": "#a85e5e",
+            "unavailable_fg": "#555555",
         },
     },
     "search": {
@@ -266,6 +274,7 @@ DEFAULT_THEME_LIGHT = {
             "focus_bg": "#f0d0d0",
             "focus_fg": "#000000",
             "option_fg": "#a85a5a",
+            "unavailable_fg": "#bbbbbb",
         },
     },
     "search": {
