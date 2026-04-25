@@ -29,6 +29,9 @@ class Segment:
     searchable: bool = False
     tab_advances: bool = True
     installed: set[str] = field(default_factory=set)  # tracks locally installed options
+    creatable: bool = False  # whether this segment supports inline "+" creation
+    creating: bool = False   # True when in creation-mode text input
+    create_buffer: str = ""  # text being typed for the new option
 
     @property
     def value(self) -> str | None:
@@ -62,6 +65,11 @@ class Segment:
         else:
             ring_pos = max(0, min(n, ring_pos))
         self.selected_idx = ring_pos - 1  # back to [-1, n-1]
+
+    @property
+    def is_on_plus(self) -> bool:
+        """True if the current selection is the '+' creation sentinel."""
+        return self.creatable and self.value == "+"
 
     def select_value(self, val: str) -> bool:
         """Select an option by its string value. Returns True if found."""
@@ -207,11 +215,15 @@ def build_segment_bar(cfg: ConfigManager) -> SegmentBar:
             required=sdef.get("required", False),
             searchable=sdef.get("searchable", False),
             tab_advances=sdef.get("tab_advances", True),
+            creatable=sdef.get("creatable", False),
         )
         # Attach installed set if discovery produced one (e.g. npm_and_local)
         installed_key = f"_installed_{sdef['key']}"
         if installed_key in resolved:
             seg.installed = resolved[installed_key]
+        # Append "+" creation sentinel for creatable segments
+        if seg.creatable:
+            seg.options.append("+")
         # Pre-select from last session's config if available
         last = cfg.state.get("last_config", {})
         if sdef["key"] in last:

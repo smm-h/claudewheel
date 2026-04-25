@@ -75,5 +75,18 @@ class ConfigManager:
             f.write("\n")
         tmp.rename(path)
 
+    def add_option(self, segment_key: str, value: str) -> None:
+        """Add a new option value to options.json for the given segment."""
+        options = self._load_json(OPTIONS_FILE, self.options_def)
+        if segment_key not in options:
+            options[segment_key] = {"values": []}
+        values = options[segment_key].get("values", [])
+        if value not in values:
+            values.append(value)
+            options[segment_key]["values"] = values
+            self._save_json(OPTIONS_FILE, options)
+            # Also update in-memory copy
+            self.options_def = options
+
     def save_state(self):
         self._save_json(STATE_FILE, self.state)

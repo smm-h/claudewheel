@@ -26,6 +26,7 @@ DEFAULT_SEGMENTS = [
         "searchable": False,
         "tab_advances": True,
         "dynamic": False,
+        "creatable": True,
     },
     {
         "key": "github",
@@ -38,6 +39,7 @@ DEFAULT_SEGMENTS = [
         "searchable": False,
         "tab_advances": True,
         "dynamic": False,
+        "creatable": True,
     },
     {
         "key": "version",
