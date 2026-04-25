@@ -1,4 +1,4 @@
-"""All DEFAULT_* configuration dicts for Y`GMo>A9@a4.Qi."""
+"""All DEFAULT_* configuration dicts for TL$dxk!2OGB[mt."""
 
 DEFAULT_CONFIG = {
     "theme": "dark",
@@ -91,23 +91,24 @@ DEFAULT_SEGMENTS = [
 
 DEFAULT_OPTIONS = {
     "profile": {
-        "values": ["personal", "work", "_UC'NUN?j"],
+        "values": ["personal", "work", ".1bwR2F6D"],
         "metadata": {
             "personal": {"config_dir": "~/.claude-personal"},
             "work": {"config_dir": "~/.claude-work"},
-            "@4Sn[TG-J": {"config_dir": "~/.claude-u(5;:35"g"},
+            "7)c}M$+{9": {"config_dir": "~/.claude-?*H^W59<@"},
         },
     },
-    "github": {"values": ["gV+pU", "TX:W"]},
+    "github": {"values": ["^Y-U)", "40Sp"]},
     "version": {
         "values": [],
         "discovery": {
-            "type": "directory_listing",
+            "type": "npm_and_local",
             "path": "~/.local/share/claude/versions",
+            "count": 15,
         },
     },
     "directory": {
-        "values": ["~/Projects/,?;LV_EnYI'.1", "~/Projects/{-B[8]O])^Ga&f"],
+        "values": ["~/Projects/C\&i,.5JHLD{.", "~/Projects/>{:h+HtrB[bV1{"],
         "discovery": {"type": "state_field", "field": "recent_dirs"},
     },
     "mcp": {"values": ["default", "strict"]},
@@ -149,6 +150,7 @@ DEFAULT_THEME_DARK = {
             "focus_bg": "#4e4a2a",
             "focus_fg": "#ffffff",
             "option_fg": "#a8984e",
+            "unavailable_fg": "#555555",
         },
         "directory": {
             "value_fg": "#c8a8e8",
@@ -205,6 +207,7 @@ DEFAULT_THEME_LIGHT = {
             "focus_bg": "#f0e8d0",
             "focus_fg": "#000000",
             "option_fg": "#a89a4a",
+            "unavailable_fg": "#bbbbbb",
         },
         "directory": {
             "value_fg": "#6a3a8a",

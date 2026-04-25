@@ -55,6 +55,11 @@ def resolve_launch_config(
     version = selections.get("version")
     if version:
         binary_path = str(VERSIONS_DIR / version)
+        if not (VERSIONS_DIR / version).is_file():
+            raise OSError(
+                f"Version {version} is not installed. "
+                f"Install it with: npm install -g @anthropic-ai/claude-code@{version}"
+            )
     else:
         # Fall back to the symlink if no version selected
         binary_path = str(CLAUDE_SYMLINK)
