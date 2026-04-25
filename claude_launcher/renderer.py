@@ -101,6 +101,12 @@ class Renderer:
                     buf.append(unavail)
                     buf.append(display_value)
                     buf.append(RESET)
+                elif seg.unavailable and seg.value in seg.unavailable:
+                    # Option unavailable due to cross-segment requirement
+                    unavail = sc.get("unavailable_fg", "") or DIM
+                    buf.append(unavail)
+                    buf.append(display_value)
+                    buf.append(RESET)
                 else:
                     buf.append(sc.get("value_fg", ""))
                     buf.append(display_value)
@@ -172,6 +178,8 @@ class Renderer:
                 buf.append(DIM)
             elif seg.installed and opt_text not in seg.installed:
                 buf.append(unavail_fg)
+            elif seg.unavailable and opt_text in seg.unavailable:
+                buf.append(unavail_fg)
             else:
                 buf.append(option_fg)
             buf.append(display)
@@ -189,6 +197,8 @@ class Renderer:
             elif opt_text == "+":
                 buf.append(DIM)
             elif seg.installed and opt_text not in seg.installed:
+                buf.append(unavail_fg)
+            elif seg.unavailable and opt_text in seg.unavailable:
                 buf.append(unavail_fg)
             else:
                 buf.append(option_fg)

@@ -1,4 +1,4 @@
-"""All DEFAULT_* configuration dicts for G[A#d]U536caKq."""
+"""All DEFAULT_* configuration dicts for $?ma,`/67Ke=|>."""
 
 DEFAULT_CONFIG = {
     "theme": "dark",
@@ -107,14 +107,14 @@ DEFAULT_SEGMENTS = [
 
 DEFAULT_OPTIONS = {
     "profile": {
-        "values": ["personal", "work", "9tRV.1_c4"],
+        "values": ["personal", "work", "#Y:|E+Nb)"],
         "metadata": {
             "personal": {"config_dir": "~/.claude-personal"},
             "work": {"config_dir": "~/.claude-work"},
-            "d7eJu`32.": {"config_dir": "~/.claude-;q)hO~d*c"},
+            "0+t2C/=VI": {"config_dir": "~/.claude-;G+m6.!jf"},
         },
     },
-    "github": {"values": ["2S-;l", "JQCi"]},
+    "github": {"values": ["E%{3-", "E&Xp"]},
     "version": {
         "values": [],
         "discovery": {
@@ -140,7 +140,14 @@ DEFAULT_OPTIONS = {
         },
     },
     "mcp": {"values": ["default", "strict"]},
-    "permissions": {"values": ["bypass", "default", "plan", "auto"]},
+    "permissions": {
+        "values": [
+            "bypass",
+            "default",
+            "plan",
+            {"value": "auto", "requires": {"version": ">=2.1.110"}},
+        ],
+    },
 }
 
 DEFAULT_STATE = {
@@ -203,6 +210,7 @@ DEFAULT_THEME_DARK = {
             "focus_bg": "#4e2a2a",
             "focus_fg": "#ffffff",
             "option_fg": "#a85e5e",
+            "unavailable_fg": "#555555",
         },
     },
     "search": {
@@ -266,6 +274,7 @@ DEFAULT_THEME_LIGHT = {
             "focus_bg": "#f0d0d0",
             "focus_fg": "#000000",
             "option_fg": "#a85a5a",
+            "unavailable_fg": "#bbbbbb",
         },
     },
     "search": {

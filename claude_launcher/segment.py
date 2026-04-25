@@ -29,6 +29,8 @@ class Segment:
     searchable: bool = False
     tab_advances: bool = True
     installed: set[str] = field(default_factory=set)  # tracks locally installed options
+    option_requires: dict[str, dict[str, str]] = field(default_factory=dict)  # value -> {segment_key: constraint}
+    unavailable: set[str] = field(default_factory=set)  # dynamically computed per render cycle
     creatable: bool = False  # whether this segment supports inline "+" creation
     creating: bool = False   # True when in creation-mode text input
     create_buffer: str = ""  # text being typed for the new option
@@ -147,7 +149,20 @@ def discover_options(options_def: dict, state: dict) -> dict[str, list[str]]:
     """Resolve option lists, running discovery (directory listing, state merge) as needed."""
     resolved = {}
     for key, opt in options_def.items():
-        values = list(opt.get("values", []))
+        raw_values = list(opt.get("values", []))
+        # Normalize: separate plain string values from objects with requirements
+        values = []
+        requires: dict[str, dict[str, str]] = {}
+        for v in raw_values:
+            if isinstance(v, dict):
+                values.append(v["value"])
+                if "requires" in v:
+                    requires[v["value"]] = v["requires"]
+            else:
+                values.append(v)
+        # Store requirements for build_segment_bar to pick up
+        if requires:
+            resolved[f"_requires_{key}"] = requires
         disc = opt.get("discovery")
         if disc:
             match disc["type"]:
@@ -247,6 +262,10 @@ def build_segment_bar(cfg: ConfigManager) -> SegmentBar:
         installed_key = f"_installed_{sdef['key']}"
         if installed_key in resolved:
             seg.installed = resolved[installed_key]
+        # Attach option requirements if any were parsed
+        requires_key = f"_requires_{sdef['key']}"
+        if requires_key in resolved:
+            seg.option_requires = resolved[requires_key]
         # Append "+" creation sentinel for creatable segments
         if seg.creatable:
             seg.options.append("+")
@@ -275,3 +294,33 @@ def build_segment_bar(cfg: ConfigManager) -> SegmentBar:
         )
 
     return SegmentBar(segments=segments)
+
+
+def evaluate_requires(bar: SegmentBar) -> None:
+    """Recompute unavailable sets based on cross-segment requirements."""
+    selections = bar.get_selections()
+    for seg in bar.segments:
+        unavailable: set[str] = set()
+        for opt_value, reqs in seg.option_requires.items():
+            for req_segment, constraint in reqs.items():
+                current_value = selections.get(req_segment)
+                if not _satisfies_constraint(current_value, constraint):
+                    unavailable.add(opt_value)
+                    break
+        seg.unavailable = unavailable
+
+
+def _satisfies_constraint(value: str | None, constraint: str) -> bool:
+    """Check if a value satisfies a version constraint like '>=2.1.110'."""
+    if value is None:
+        return False
+    if constraint.startswith(">="):
+        return version_sort_key(value) >= version_sort_key(constraint[2:])
+    elif constraint.startswith("<="):
+        return version_sort_key(value) <= version_sort_key(constraint[2:])
+    elif constraint.startswith(">"):
+        return version_sort_key(value) > version_sort_key(constraint[1:])
+    elif constraint.startswith("<"):
+        return version_sort_key(value) < version_sort_key(constraint[1:])
+    else:
+        return value == constraint
