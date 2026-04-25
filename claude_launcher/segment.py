@@ -178,6 +178,32 @@ def discover_options(options_def: dict, state: dict) -> dict[str, list[str]]:
                     values = all_versions
                     # Store installed set for build_segment_bar to pick up
                     resolved[f"_installed_{key}"] = installed
+                case "directory_scan":
+                    # Scan parent directories for subdirectories
+                    parents = disc.get("parents", [])
+                    found: list[str] = []
+                    home = Path.home()
+                    for parent in parents:
+                        parent_path = Path(parent).expanduser()
+                        if parent_path.is_dir():
+                            for entry in sorted(parent_path.iterdir()):
+                                if entry.is_dir() and not entry.name.startswith("."):
+                                    # Convert to ~/... format
+                                    try:
+                                        rel = entry.relative_to(home)
+                                        found.append("~/" + str(rel))
+                                    except ValueError:
+                                        found.append(str(entry))
+                    # Merge with recent_dirs from state (recent first, then discovered)
+                    state_field = disc.get("state_field")
+                    recent = state.get(state_field, []) if state_field else []
+                    seen: set[str] = set()
+                    merged: list[str] = []
+                    for v in recent + found + values:
+                        if v not in seen:
+                            seen.add(v)
+                            merged.append(v)
+                    values = merged
                 case "state_field":
                     # Merge state-tracked values with static defaults, preserving order
                     state_values = state.get(disc["field"], [])

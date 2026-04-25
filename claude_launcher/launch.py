@@ -75,6 +75,15 @@ def resolve_launch_config(
     mcp = selections.get("mcp")
     mcp_flags = ["--strict-mcp-config"] if mcp == "strict" else []
 
+    # 5b. Model flag
+    model_name = selections.get("model")
+    model_flags: list[str] = []
+    if model_name:
+        model_meta = options_def.get("model", {}).get("metadata", {})
+        model_id = model_meta.get(model_name, {}).get("model_id")
+        if model_id:
+            model_flags = ["--model", model_id]
+
     # 6. Permission flags
     perm = selections.get("permissions")
     perm_flags: list[str] = []
@@ -90,7 +99,7 @@ def resolve_launch_config(
         env["GH_TOKEN"] = gh_token
 
     # 8. Argv
-    argv = [binary_path] + default_flags + mcp_flags + perm_flags
+    argv = [binary_path] + default_flags + mcp_flags + perm_flags + model_flags
 
     return (cwd, argv, env)
 

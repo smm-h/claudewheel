@@ -1,4 +1,4 @@
-"""All DEFAULT_* configuration dicts for 62BkyI7t/`E`C8."""
+"""All DEFAULT_* configuration dicts for G[A#d]U536caKq."""
 
 DEFAULT_CONFIG = {
     "theme": "dark",
@@ -6,6 +6,7 @@ DEFAULT_CONFIG = {
         "profile",
         "github",
         "version",
+        "model",
         "directory",
         "mcp",
         "permissions",
@@ -54,6 +55,19 @@ DEFAULT_SEGMENTS = [
         "dynamic": True,
     },
     {
+        "key": "model",
+        "label": "Model",
+        "show_options": True,
+        "wrap": True,
+        "min_width": 6,
+        "max_width": 16,
+        "required": False,
+        "searchable": False,
+        "tab_advances": True,
+        "dynamic": False,
+        "creatable": False,
+    },
+    {
         "key": "directory",
         "label": "Dir",
         "show_options": True,
@@ -93,14 +107,14 @@ DEFAULT_SEGMENTS = [
 
 DEFAULT_OPTIONS = {
     "profile": {
-        "values": ["personal", "work", "&2\[M=t"j"],
+        "values": ["personal", "work", "9tRV.1_c4"],
         "metadata": {
             "personal": {"config_dir": "~/.claude-personal"},
             "work": {"config_dir": "~/.claude-work"},
-            "Q{!9@$H\(": {"config_dir": "~/.claude-,|@'A`Zfn"},
+            "d7eJu`32.": {"config_dir": "~/.claude-;q)hO~d*c"},
         },
     },
-    "github": {"values": ["AUDvS", "2o>*"]},
+    "github": {"values": ["2S-;l", "JQCi"]},
     "version": {
         "values": [],
         "discovery": {
@@ -110,8 +124,20 @@ DEFAULT_OPTIONS = {
         },
     },
     "directory": {
-        "values": ["~/Projects/wbQP3EpWnRn8=", "~/Projects/nL?<po[i_cG\)*"],
-        "discovery": {"type": "state_field", "field": "recent_dirs"},
+        "values": [],
+        "discovery": {
+            "type": "directory_scan",
+            "parents": ["~/Projects", "~/Work"],
+            "state_field": "recent_dirs",
+        },
+    },
+    "model": {
+        "values": ["opus", "sonnet", "haiku"],
+        "metadata": {
+            "opus": {"model_id": "claude-opus-4-6"},
+            "sonnet": {"model_id": "claude-sonnet-4-6"},
+            "haiku": {"model_id": "claude-haiku-4-5-20251001"},
+        },
     },
     "mcp": {"values": ["default", "strict"]},
     "permissions": {"values": ["bypass", "default", "plan", "auto"]},
@@ -153,6 +179,12 @@ DEFAULT_THEME_DARK = {
             "focus_fg": "#ffffff",
             "option_fg": "#a8984e",
             "unavailable_fg": "#555555",
+        },
+        "model": {
+            "value_fg": "#b8e8b8",
+            "focus_bg": "#2a4e3a",
+            "focus_fg": "#ffffff",
+            "option_fg": "#6aaa7a",
         },
         "directory": {
             "value_fg": "#c8a8e8",
@@ -210,6 +242,12 @@ DEFAULT_THEME_LIGHT = {
             "focus_fg": "#000000",
             "option_fg": "#a89a4a",
             "unavailable_fg": "#bbbbbb",
+        },
+        "model": {
+            "value_fg": "#2a6a3a",
+            "focus_bg": "#d0f0d8",
+            "focus_fg": "#000000",
+            "option_fg": "#4a8a5a",
         },
         "directory": {
             "value_fg": "#6a3a8a",
