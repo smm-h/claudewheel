@@ -59,13 +59,13 @@ DEFAULT_SEGMENTS = [
         "label": "Model",
         "show_options": True,
         "wrap": True,
-        "min_width": 6,
-        "max_width": 16,
+        "min_width": 10,
+        "max_width": 24,
         "required": False,
-        "searchable": False,
+        "searchable": True,
         "tab_advances": True,
         "dynamic": False,
-        "creatable": False,
+        "creatable": True,
     },
     {
         "key": "directory",
@@ -132,12 +132,12 @@ DEFAULT_OPTIONS = {
         },
     },
     "model": {
-        "values": ["opus", "sonnet", "haiku"],
-        "metadata": {
-            "opus": {"model_id": "claude-opus-4-6"},
-            "sonnet": {"model_id": "claude-sonnet-4-6"},
-            "haiku": {"model_id": "claude-haiku-4-5-20251001"},
-        },
+        "values": [
+            "claude-opus-4-6",
+            "claude-sonnet-4-6",
+            "claude-haiku-4-5-20251001",
+            "claude-sonnet-4-5-20241022",
+        ],
     },
     "mcp": {"values": ["default", "strict"]},
     "permissions": {

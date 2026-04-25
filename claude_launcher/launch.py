@@ -75,14 +75,13 @@ def resolve_launch_config(
     mcp = selections.get("mcp")
     mcp_flags = ["--strict-mcp-config"] if mcp == "strict" else []
 
-    # 5b. Model flag
+    # 5b. Model flag -- value is the model ID directly, or looked up from metadata
     model_name = selections.get("model")
     model_flags: list[str] = []
     if model_name:
         model_meta = options_def.get("model", {}).get("metadata", {})
-        model_id = model_meta.get(model_name, {}).get("model_id")
-        if model_id:
-            model_flags = ["--model", model_id]
+        model_id = model_meta.get(model_name, {}).get("model_id", model_name)
+        model_flags = ["--model", model_id]
 
     # 6. Permission flags
     perm = selections.get("permissions")
