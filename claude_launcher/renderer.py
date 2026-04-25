@@ -73,13 +73,11 @@ class Renderer:
                 if seg.creating:
                     # Render creation text input + cursor character
                     buf.append(display_value)
-                    buf.append(RESET)
-                    buf.append(th.search_cursor_fg + "_" + RESET)
+                    buf.append(focus_bg + th.search_cursor_fg + "_" + RESET)
                 elif seg.searchable and seg.search_buffer:
                     # Render search text + cursor character
                     buf.append(display_value)
-                    buf.append(RESET)
-                    buf.append(th.search_cursor_fg + "_" + RESET)
+                    buf.append(focus_bg + th.search_cursor_fg + "_" + RESET)
                 else:
                     buf.append(display_value)
                     buf.append(RESET)
