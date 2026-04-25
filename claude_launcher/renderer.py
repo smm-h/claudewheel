@@ -155,6 +155,9 @@ class Renderer:
                 above = list(reversed(opts[:sel_idx]))
                 # Options after selected go below
                 below = opts[sel_idx + 1:]
+                # Show "---" (blank state) in fan-out when wrap is enabled
+                if seg.wrap:
+                    above.append(self.theme.empty_value_text)
 
         # Render above options
         for offset, opt_text in enumerate(above, start=1):
@@ -163,7 +166,9 @@ class Renderer:
                 break
             display = self._fit_value(opt_text, seg.min_width, seg.max_width)
             buf.append(move_to(row, value_col))
-            if opt_text == "+":
+            if opt_text == self.theme.empty_value_text:
+                buf.append(self.theme.empty_value_fg)
+            elif opt_text == "+":
                 buf.append(DIM)
             elif seg.installed and opt_text not in seg.installed:
                 buf.append(unavail_fg)
@@ -179,7 +184,9 @@ class Renderer:
                 break
             display = self._fit_value(opt_text, seg.min_width, seg.max_width)
             buf.append(move_to(row, value_col))
-            if opt_text == "+":
+            if opt_text == self.theme.empty_value_text:
+                buf.append(self.theme.empty_value_fg)
+            elif opt_text == "+":
                 buf.append(DIM)
             elif seg.installed and opt_text not in seg.installed:
                 buf.append(unavail_fg)
