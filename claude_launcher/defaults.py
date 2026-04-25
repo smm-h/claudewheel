@@ -1,4 +1,4 @@
-"""All DEFAULT_* configuration dicts for TL$dxk!2OGB[mt."""
+"""All DEFAULT_* configuration dicts for 62BkyI7t/`E`C8."""
 
 DEFAULT_CONFIG = {
     "theme": "dark",
@@ -26,6 +26,7 @@ DEFAULT_SEGMENTS = [
         "searchable": False,
         "tab_advances": True,
         "dynamic": False,
+        "creatable": True,
     },
     {
         "key": "github",
@@ -38,6 +39,7 @@ DEFAULT_SEGMENTS = [
         "searchable": False,
         "tab_advances": True,
         "dynamic": False,
+        "creatable": True,
     },
     {
         "key": "version",
@@ -91,14 +93,14 @@ DEFAULT_SEGMENTS = [
 
 DEFAULT_OPTIONS = {
     "profile": {
-        "values": ["personal", "work", ".1bwR2F6D"],
+        "values": ["personal", "work", "&2\[M=t"j"],
         "metadata": {
             "personal": {"config_dir": "~/.claude-personal"},
             "work": {"config_dir": "~/.claude-work"},
-            "7)c}M$+{9": {"config_dir": "~/.claude-?*H^W59<@"},
+            "Q{!9@$H\(": {"config_dir": "~/.claude-,|@'A`Zfn"},
         },
     },
-    "github": {"values": ["^Y-U)", "40Sp"]},
+    "github": {"values": ["AUDvS", "2o>*"]},
     "version": {
         "values": [],
         "discovery": {
@@ -108,7 +110,7 @@ DEFAULT_OPTIONS = {
         },
     },
     "directory": {
-        "values": ["~/Projects/C\&i,.5JHLD{.", "~/Projects/>{:h+HtrB[bV1{"],
+        "values": ["~/Projects/wbQP3EpWnRn8=", "~/Projects/nL?<po[i_cG\)*"],
         "discovery": {"type": "state_field", "field": "recent_dirs"},
     },
     "mcp": {"values": ["default", "strict"]},

@@ -6,7 +6,7 @@ import signal
 import sys
 
 from .config import ConfigManager
-from .segment import build_segment_bar
+from .segment import Segment, build_segment_bar
 from .terminal import Terminal
 from .theme import parse_theme
 from .renderer import Renderer
@@ -61,6 +61,10 @@ class App:
         """Process a keypress and return an action string or None to continue."""
         focused = self.bar.focused
 
+        # Creation mode intercepts all keys
+        if focused.creating:
+            return self._handle_create_key(key, focused)
+
         match key:
             case "LEFT":
                 focused.search_buffer = ""
@@ -77,6 +81,11 @@ class App:
                     focused.search_buffer = ""
                 focused.cycle(1)
             case "ENTER":
+                # Enter creation mode if on the "+" sentinel
+                if focused.is_on_plus:
+                    focused.creating = True
+                    focused.create_buffer = ""
+                    return None
                 # Only launch if all required segments have a selection
                 missing = [
                     s.label
@@ -88,6 +97,11 @@ class App:
                 # Flash a message so the user knows why ENTER was blocked
                 self._flash = f"Required: {', '.join(missing)}"
             case "TAB":
+                # Enter creation mode if on the "+" sentinel
+                if focused.is_on_plus:
+                    focused.creating = True
+                    focused.create_buffer = ""
+                    return None
                 if focused.searchable and focused.search_buffer:
                     # Accept the top fuzzy match
                     matches = focused.filtered_options
@@ -113,3 +127,43 @@ class App:
                     elif key == "q":
                         return "quit"
         return None
+
+    def _handle_create_key(self, key: str, seg: Segment) -> str | None:
+        """Handle keystrokes while in creation mode."""
+        match key:
+            case "ENTER":
+                if seg.create_buffer.strip():
+                    self._confirm_create(seg)
+                return None
+            case "ESC":
+                seg.creating = False
+                seg.create_buffer = ""
+                return None
+            case "BACKSPACE":
+                seg.create_buffer = seg.create_buffer[:-1]
+                return None
+            case "CTRL_C":
+                seg.creating = False
+                seg.create_buffer = ""
+                return "quit"
+            case _:
+                if len(key) == 1 and key.isprintable():
+                    seg.create_buffer += key
+        return None
+
+    def _confirm_create(self, seg: Segment) -> None:
+        """Confirm creation of a new option."""
+        name = seg.create_buffer.strip()
+        seg.creating = False
+        seg.create_buffer = ""
+
+        if not name or name == "+" or name in seg.options:
+            return  # invalid or duplicate
+
+        # Insert before the "+" sentinel
+        plus_idx = seg.options.index("+")
+        seg.options.insert(plus_idx, name)
+        seg.select_value(name)
+
+        # Persist to options.json
+        self.cfg.add_option(seg.key, name)

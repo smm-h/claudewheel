@@ -44,7 +44,11 @@ class Renderer:
             label_str = seg.label + ": "
 
             # Determine what to display as the value
-            if is_focused and seg.searchable and seg.search_buffer:
+            if is_focused and seg.creating:
+                # Creation mode: show the text input buffer
+                raw_value = seg.create_buffer
+                display_value = self._fit_value(raw_value, seg.min_width, seg.max_width)
+            elif is_focused and seg.searchable and seg.search_buffer:
                 # Show the search buffer text with a cursor
                 raw_value = seg.search_buffer
                 display_value = self._fit_value(raw_value, seg.min_width, seg.max_width)
@@ -66,7 +70,12 @@ class Renderer:
                 focus_fg = sc.get("focus_fg", "")
                 buf.append(focus_bg + focus_fg)
                 buf.append(label_str)
-                if seg.searchable and seg.search_buffer:
+                if seg.creating:
+                    # Render creation text input + cursor character
+                    buf.append(display_value)
+                    buf.append(RESET)
+                    buf.append(th.search_cursor_fg + "_" + RESET)
+                elif seg.searchable and seg.search_buffer:
                     # Render search text + cursor character
                     buf.append(display_value)
                     buf.append(RESET)
@@ -83,6 +92,11 @@ class Renderer:
                     buf.append(th.empty_value_fg)
                     buf.append(display_value)
                     buf.append(RESET)
+                elif seg.value == "+":
+                    # "+" sentinel rendered dim when not focused
+                    buf.append(DIM)
+                    buf.append(display_value)
+                    buf.append(RESET)
                 elif seg.installed and seg.value not in seg.installed:
                     # Uninstalled option: render dimly with unavailable color
                     unavail = sc.get("unavailable_fg", "") or DIM
@@ -94,8 +108,9 @@ class Renderer:
                     buf.append(display_value)
                     buf.append(RESET)
 
-            # Advance column past value; add 1 for cursor char if search is active
-            extra = 1 if (is_focused and seg.searchable and seg.search_buffer) else 0
+            # Advance column past value; add 1 for cursor char if search or creation is active
+            has_cursor = is_focused and (seg.creating or (seg.searchable and seg.search_buffer))
+            extra = 1 if has_cursor else 0
             col += len(label_str) + len(display_value) + extra
 
             # Separator between segments (not after the last one)
@@ -150,8 +165,9 @@ class Renderer:
                 break
             display = self._fit_value(opt_text, seg.min_width, seg.max_width)
             buf.append(move_to(row, value_col))
-            # Use unavailable color for options not locally installed
-            if seg.installed and opt_text not in seg.installed:
+            if opt_text == "+":
+                buf.append(DIM)
+            elif seg.installed and opt_text not in seg.installed:
                 buf.append(unavail_fg)
             else:
                 buf.append(option_fg)
@@ -165,8 +181,9 @@ class Renderer:
                 break
             display = self._fit_value(opt_text, seg.min_width, seg.max_width)
             buf.append(move_to(row, value_col))
-            # Use unavailable color for options not locally installed
-            if seg.installed and opt_text not in seg.installed:
+            if opt_text == "+":
+                buf.append(DIM)
+            elif seg.installed and opt_text not in seg.installed:
                 buf.append(unavail_fg)
             else:
                 buf.append(option_fg)
@@ -182,7 +199,11 @@ class Renderer:
             buf.append(RESET)
             return
         seg = bar.focused
-        if seg.searchable:
+        if seg.creating:
+            hints = "type: name   enter: confirm   esc: cancel"
+        elif seg.is_on_plus:
+            hints = "enter: create new   arrows: navigate   q: quit"
+        elif seg.searchable:
             if seg.search_buffer:
                 hints = "type: search   tab: accept   esc: clear   backspace: delete   enter: launch"
             else:
