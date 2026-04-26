@@ -88,16 +88,39 @@ class App:
                     focused.creating = True
                     focused.create_buffer = ""
                     return None
-                # Only launch if all required segments have a selection
+                # Freeform: submit typed text as the value directly
+                if focused.freeform and focused.search_buffer:
+                    text = focused.search_buffer.strip()
+                    if text:
+                        if text not in focused.options:
+                            focused.options.append(text)
+                        focused.select_value(text)
+                        focused.search_buffer = ""
+                        if focused.tab_advances:
+                            self.bar.move_focus(1)
+                        return None
+                # Check for required segments without a selection
                 missing = [
                     s.label
                     for s in self.bar.segments
                     if s.required and s.value is None
                 ]
-                if not missing:
-                    return "launch"
-                # Flash a message so the user knows why ENTER was blocked
-                self._flash = f"Required: {', '.join(missing)}"
+                if missing:
+                    self._flash = f"Required: {', '.join(missing)}"
+                    return None
+                # Check for uninstalled or unavailable selections
+                problems = []
+                for s in self.bar.segments:
+                    if s.value is None:
+                        continue
+                    if s.installed and s.value not in s.installed:
+                        problems.append(f"{s.label}: {s.value} not installed")
+                    elif s.value in s.unavailable:
+                        problems.append(f"{s.label}: {s.value} unavailable")
+                if problems:
+                    self._flash = problems[0]
+                    return None
+                return "launch"
             case "TAB":
                 # Enter creation mode if on the "+" sentinel
                 if focused.is_on_plus:

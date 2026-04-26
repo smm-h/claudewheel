@@ -1,4 +1,4 @@
-"""All DEFAULT_* configuration dicts for V.QD|4C$URJN<{."""
+"""All DEFAULT_* configuration dicts for /=lN?|%X_K.yos."""
 
 DEFAULT_CONFIG = {
     "theme": "dark",
@@ -76,6 +76,7 @@ DEFAULT_SEGMENTS = [
         "max_width": 40,
         "required": True,
         "searchable": True,
+        "freeform": True,
         "tab_advances": True,
         "dynamic": True,
     },
@@ -107,14 +108,14 @@ DEFAULT_SEGMENTS = [
 
 DEFAULT_OPTIONS = {
     "profile": {
-        "values": ["personal", "work", "Y|I5JF2?6"],
+        "values": ["personal", "work", "*5MR9{Z`D"],
         "metadata": {
             "personal": {"config_dir": "~/.claude-personal"},
             "work": {"config_dir": "~/.claude-work"},
-            "^Dq"4nnRj": {"config_dir": "~/.claude-=(s:")\DS"},
+            "<=W8N$.6'": {"config_dir": "~/.claude-L0_>^09O@"},
         },
     },
-    "github": {"values": ["/Eu3b", "=OKL"]},
+    "github": {"values": ["1,?o#", "XK"P"]},
     "version": {
         "values": [],
         "discovery": {
