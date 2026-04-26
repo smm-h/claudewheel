@@ -139,7 +139,10 @@ class App:
                 elif focused.tab_advances:
                     self.bar.move_focus(1)
             case "BACKSPACE":
-                if focused.searchable and focused.search_buffer:
+                if focused.freeform and not focused.search_buffer and focused.value:
+                    # Seed buffer from selected value so it becomes editable
+                    focused.search_buffer = focused.value[:-1]
+                elif focused.searchable and focused.search_buffer:
                     focused.search_buffer = focused.search_buffer[:-1]
             case "ESC":
                 focused.search_buffer = ""
@@ -148,7 +151,10 @@ class App:
             case _:
                 # Single printable characters
                 if len(key) == 1 and key.isprintable():
-                    if focused.searchable and (focused.search_buffer or key != "q"):
+                    if focused.freeform and not focused.search_buffer and focused.value:
+                        # Seed buffer from selected value so typing appends to it
+                        focused.search_buffer = focused.value + key
+                    elif focused.searchable and (focused.search_buffer or key != "q"):
                         focused.search_buffer += key
                     elif key == "q":
                         return "quit"
