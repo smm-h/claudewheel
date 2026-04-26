@@ -32,6 +32,7 @@ class Segment:
     option_requires: dict[str, dict[str, str]] = field(default_factory=dict)  # value -> {segment_key: constraint}
     unavailable: set[str] = field(default_factory=set)  # dynamically computed per render cycle
     creatable: bool = False  # whether this segment supports inline "+" creation
+    freeform: bool = False   # whether typed text can be submitted as a new value directly
     creating: bool = False   # True when in creation-mode text input
     create_buffer: str = ""  # text being typed for the new option
 
@@ -257,6 +258,7 @@ def build_segment_bar(cfg: ConfigManager) -> SegmentBar:
             searchable=sdef.get("searchable", False),
             tab_advances=sdef.get("tab_advances", True),
             creatable=sdef.get("creatable", False),
+            freeform=sdef.get("freeform", False),
         )
         # Attach installed set if discovery produced one (e.g. npm_and_local)
         installed_key = f"_installed_{sdef['key']}"

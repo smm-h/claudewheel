@@ -90,10 +90,10 @@ def main() -> None:
             sys.exit(1)
         # Save state only after hooks succeed, so launch_count isn't inflated by aborts
         save_launch_state(cfg, selections)
-        cwd, argv, env = resolve_launch_config(
-            selections, cfg.options_def, cfg.config.get("default_flags", [])
-        )
         try:
+            cwd, argv, env = resolve_launch_config(
+                selections, cfg.options_def, cfg.config.get("default_flags", [])
+            )
             do_launch(cwd, argv, env)
         except OSError as e:
             print(f"Launch failed: {e}", file=sys.stderr)
@@ -126,10 +126,10 @@ def main() -> None:
         sys.exit(1)
     # Save state only after hooks succeed, so launch_count isn't inflated by aborts
     save_launch_state(app.cfg, selections)
-    cwd, argv, env = resolve_launch_config(
-        selections, app.cfg.options_def, app.cfg.config.get("default_flags", [])
-    )
     try:
+        cwd, argv, env = resolve_launch_config(
+            selections, app.cfg.options_def, app.cfg.config.get("default_flags", [])
+        )
         do_launch(cwd, argv, env)
     except OSError as e:
         print(f"Launch failed: {e}", file=sys.stderr)

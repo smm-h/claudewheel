@@ -76,6 +76,7 @@ DEFAULT_SEGMENTS = [
         "max_width": 40,
         "required": True,
         "searchable": True,
+        "freeform": True,
         "tab_advances": True,
         "dynamic": True,
     },
