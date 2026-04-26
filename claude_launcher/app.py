@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import signal
-import subprocess
 import sys
 
 from .config import ConfigManager
@@ -207,17 +206,26 @@ class App:
         if key != "ENTER" or not version or not seg:
             return None
 
-        # Exit alt screen so the user sees npm output
+        from .install import install_version
+
+        # Exit alt screen so the user sees download progress
         self.terminal.exit_raw()
-        print(f"Installing @anthropic-ai/claude-code@{version}...")
-        result = subprocess.run(
-            ["npm", "install", "-g", f"@anthropic-ai/claude-code@{version}"],
-        )
-        if result.returncode == 0:
-            print("Installed successfully. Press Enter to continue...")
+        print(f"Downloading Claude Code {version}...")
+
+        def on_progress(downloaded: int, total: int) -> None:
+            if total > 0:
+                mb_done = downloaded / (1024 * 1024)
+                mb_total = total / (1024 * 1024)
+                pct = downloaded * 100 // total
+                print(f"\r  {mb_done:.0f}/{mb_total:.0f} MB ({pct}%)", end="", flush=True)
+
+        try:
+            install_version(version, progress_callback=on_progress)
+            print(f"\nInstalled {version} successfully. Press Enter to continue...")
             seg.installed.add(version)
-        else:
-            print("Installation failed. Press Enter to continue...")
+        except OSError as e:
+            print(f"\nInstallation failed: {e}")
+            print("Press Enter to continue...")
         try:
             input()
         except KeyboardInterrupt:

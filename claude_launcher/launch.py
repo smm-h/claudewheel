@@ -57,8 +57,9 @@ def resolve_launch_config(
         binary_path = str(VERSIONS_DIR / version)
         if not (VERSIONS_DIR / version).is_file():
             raise OSError(
-                f"Version {version} is not installed. "
-                f"Install it with: npm install -g @anthropic-ai/claude-code@{version}"
+                f"Version {version} is not on disk. "
+                f"Use the TUI to install it, or run: "
+                f"python3 -m claude_launcher --install {version}"
             )
     else:
         # Fall back to the symlink if no version selected
