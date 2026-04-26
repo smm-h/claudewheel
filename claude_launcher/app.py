@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import signal
+import subprocess
 import sys
 
 from .config import ConfigManager
@@ -21,6 +22,8 @@ class App:
         self.renderer = Renderer(self.terminal, self.theme)
         self.running = False
         self._flash: str = ""  # Temporary message shown for one render cycle
+        self._pending_install: str | None = None  # version awaiting install confirmation
+        self._pending_install_seg: Segment | None = None
 
     def run_tui(self) -> dict[str, str | None] | None:
         """Enter the TUI loop. Returns selections on launch, None on quit."""
@@ -67,6 +70,15 @@ class App:
         if focused.creating:
             return self._handle_create_key(key, focused)
 
+        # Freeform editing mode: when a freeform segment has an active search buffer,
+        # treat it like a text input (UP/DOWN/LEFT/RIGHT don't destroy the buffer)
+        if focused.freeform and focused.search_buffer:
+            return self._handle_freeform_key(key, focused)
+
+        # Pending install confirmation
+        if self._pending_install:
+            return self._handle_install_key(key)
+
         match key:
             case "LEFT":
                 focused.search_buffer = ""
@@ -88,17 +100,6 @@ class App:
                     focused.creating = True
                     focused.create_buffer = ""
                     return None
-                # Freeform: submit typed text as the value directly
-                if focused.freeform and focused.search_buffer:
-                    text = focused.search_buffer.strip()
-                    if text:
-                        if text not in focused.options:
-                            focused.options.append(text)
-                        focused.select_value(text)
-                        focused.search_buffer = ""
-                        if focused.tab_advances:
-                            self.bar.move_focus(1)
-                        return None
                 # Check for required segments without a selection
                 missing = [
                     s.label
@@ -108,18 +109,18 @@ class App:
                 if missing:
                     self._flash = f"Required: {', '.join(missing)}"
                     return None
-                # Check for uninstalled or unavailable selections
-                problems = []
+                # Check for non-installed version -- offer to install
                 for s in self.bar.segments:
-                    if s.value is None:
-                        continue
-                    if s.installed and s.value not in s.installed:
-                        problems.append(f"{s.label}: {s.value} not installed")
-                    elif s.value in s.unavailable:
-                        problems.append(f"{s.label}: {s.value} unavailable")
-                if problems:
-                    self._flash = problems[0]
-                    return None
+                    if s.value and s.installed and s.value not in s.installed:
+                        self._pending_install = s.value
+                        self._pending_install_seg = s
+                        self._flash = f"{s.value} not on disk. Enter=install, Esc=cancel"
+                        return None
+                # Check for unavailable selections
+                for s in self.bar.segments:
+                    if s.value and s.value in s.unavailable:
+                        self._flash = f"{s.label}: {s.value} not available for this version"
+                        return None
                 return "launch"
             case "TAB":
                 # Enter creation mode if on the "+" sentinel
@@ -151,6 +152,72 @@ class App:
                         focused.search_buffer += key
                     elif key == "q":
                         return "quit"
+        return None
+
+    def _handle_freeform_key(self, key: str, seg: Segment) -> str | None:
+        """Handle keystrokes in freeform editing mode (search buffer active on a freeform segment)."""
+        match key:
+            case "ENTER":
+                # Submit the typed text as the value
+                text = seg.search_buffer.strip()
+                if text:
+                    if text not in seg.options:
+                        seg.options.append(text)
+                    seg.select_value(text)
+                seg.search_buffer = ""
+                if seg.tab_advances:
+                    self.bar.move_focus(1)
+                return None
+            case "TAB":
+                # Accept the top fuzzy match (not the raw text)
+                matches = seg.filtered_options
+                if matches:
+                    seg.select_value(matches[0])
+                seg.search_buffer = ""
+                if seg.tab_advances:
+                    self.bar.move_focus(1)
+                return None
+            case "BACKSPACE":
+                seg.search_buffer = seg.search_buffer[:-1]
+                return None
+            case "ESC":
+                seg.search_buffer = ""
+                return None
+            case "CTRL_C":
+                seg.search_buffer = ""
+                return "quit"
+            case _:
+                if len(key) == 1 and key.isprintable():
+                    seg.search_buffer += key
+        return None
+
+    def _handle_install_key(self, key: str) -> str | None:
+        """Handle keystrokes during install confirmation."""
+        version = self._pending_install
+        seg = self._pending_install_seg
+        self._pending_install = None
+        self._pending_install_seg = None
+
+        if key != "ENTER" or not version or not seg:
+            return None
+
+        # Exit alt screen so the user sees npm output
+        self.terminal.exit_raw()
+        print(f"Installing @anthropic-ai/claude-code@{version}...")
+        result = subprocess.run(
+            ["npm", "install", "-g", f"@anthropic-ai/claude-code@{version}"],
+        )
+        if result.returncode == 0:
+            print("Installed successfully. Press Enter to continue...")
+            seg.installed.add(version)
+        else:
+            print("Installation failed. Press Enter to continue...")
+        try:
+            input()
+        except KeyboardInterrupt:
+            pass
+        # Re-enter alt screen
+        self.terminal.enter_raw()
         return None
 
     def _handle_create_key(self, key: str, seg: Segment) -> str | None:
