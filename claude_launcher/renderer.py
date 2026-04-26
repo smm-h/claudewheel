@@ -218,6 +218,8 @@ class Renderer:
             hints = "type: name   enter: confirm   esc: cancel"
         elif seg.is_on_plus:
             hints = "enter: create new   arrows: navigate   q: quit"
+        elif seg.freeform and seg.search_buffer:
+            hints = "type: path   enter: use   tab: match   esc: clear   backspace: delete"
         elif seg.searchable:
             if seg.search_buffer:
                 hints = "type: search   tab: accept   esc: clear   backspace: delete   enter: launch"
