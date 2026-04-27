@@ -16,14 +16,61 @@ from .segment import version_sort_key
 from .state import save_launch_state
 
 
+def _do_launch_sequence(cfg: ConfigManager, selections: dict) -> None:
+    """Run health check, hooks, save state, resolve, and exec. Does not return on success."""
+    if cfg.config.get("health_check_on_launch", True):
+        results = run_health_check()
+        warnings = [r for r in results if not r.ok]
+        if warnings:
+            print("Health warnings:")
+            print_health_report(warnings)
+            print("Press Enter to continue or Ctrl-C to abort...")
+            try:
+                input()
+            except KeyboardInterrupt:
+                print()
+                sys.exit(1)
+    if not run_hooks("pre-launch", selections):
+        print("Pre-launch hook failed. Aborting.")
+        sys.exit(1)
+    # Save state only after hooks succeed, so launch_count isn't inflated by aborts
+    save_launch_state(cfg, selections)
+    try:
+        cwd, argv, env = resolve_launch_config(
+            selections, cfg.options_def, cfg.config.get("default_flags", [])
+        )
+        do_launch(cwd, argv, env)
+    except OSError as e:
+        print(f"Launch failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main() -> None:
+    # Load config first so we can build dynamic --<segment> CLI args
+    cfg = ConfigManager()
+    enabled = cfg.config.get("enabled_segments", [])
+    segment_keys = [s["key"] for s in cfg.segments_def if s["key"] in enabled]
+
     parser = argparse.ArgumentParser(prog="c", description="ClaudeLauncher - TUI launcher for Claude Code")
     parser.add_argument("preset", nargs="?", default=None, help="preset name (reserved for future use)")
     parser.add_argument("--last", action="store_true", help="relaunch with last-used config, no TUI")
-    parser.add_argument("--pick", action="store_true", help="force TUI even if --last is set")
+    parser.add_argument("--pick", action="store_true", help="force TUI even if --last or all segment args are set")
     parser.add_argument("--health", action="store_true", help="run health check and exit")
     parser.add_argument("--config", action="store_true", help="open ~/.claudelauncher/ in $EDITOR")
     parser.add_argument("--versions", action="store_true", help="list available versions and exit")
+    parser.add_argument("--install", metavar="VERSION", default=None,
+                        help="download and install a specific Claude Code version, then exit")
+
+    # Dynamic --<segment_key> args, one per enabled segment
+    seg_group = parser.add_argument_group("segment values")
+    for sdef in cfg.segments_def:
+        key = sdef["key"]
+        if key in enabled:
+            seg_group.add_argument(
+                f"--{key}", default=None, metavar="VALUE",
+                help=f"preset value for the {sdef.get('label', key)} segment",
+            )
+
     args = parser.parse_args()
 
     # --versions: list installed versions and exit
@@ -65,72 +112,60 @@ def main() -> None:
         print_health_report(results)
         sys.exit(0 if all(r.ok for r in results) else 1)
 
-    # --last (and not --pick): relaunch from saved state
+    # --install <version>: download and install a version, then exit
+    if args.install:
+        from .install import install_version
+
+        def on_progress(downloaded: int, total: int) -> None:
+            if total > 0:
+                mb_done = downloaded / (1024 * 1024)
+                mb_total = total / (1024 * 1024)
+                pct = downloaded * 100 // total
+                print(f"\r  {mb_done:.0f}/{mb_total:.0f} MB ({pct}%)", end="", flush=True)
+
+        print(f"Downloading Claude Code {args.install}...")
+        try:
+            dest = install_version(args.install, progress_callback=on_progress)
+            print(f"\nInstalled to {dest}")
+        except OSError as e:
+            print(f"\nInstallation failed: {e}", file=sys.stderr)
+            sys.exit(1)
+        return
+
+    # Collect segment value overrides from CLI args
+    segment_overrides: dict[str, str] = {}
+    for key in segment_keys:
+        val = getattr(args, key, None)
+        if val is not None:
+            segment_overrides[key] = val
+
+    # --last (and not --pick): relaunch from saved state, with arg overrides
     if args.last and not args.pick:
-        cfg = ConfigManager()
-        last = cfg.state.get("last_config", {})
+        last = dict(cfg.state.get("last_config", {}))
+        last.update(segment_overrides)
         if not last:
             print("No last config found. Run without --last to use the TUI.")
             return
-        selections = last
-        if cfg.config.get("health_check_on_launch", True):
-            results = run_health_check()
-            warnings = [r for r in results if not r.ok]
-            if warnings:
-                print("Health warnings:")
-                print_health_report(warnings)
-                print("Press Enter to continue or Ctrl-C to abort...")
-                try:
-                    input()
-                except KeyboardInterrupt:
-                    print()
-                    sys.exit(1)
-        if not run_hooks("pre-launch", selections):
-            print("Pre-launch hook failed. Aborting.")
-            sys.exit(1)
-        # Save state only after hooks succeed, so launch_count isn't inflated by aborts
-        save_launch_state(cfg, selections)
-        try:
-            cwd, argv, env = resolve_launch_config(
-                selections, cfg.options_def, cfg.config.get("default_flags", [])
-            )
-            do_launch(cwd, argv, env)
-        except OSError as e:
-            print(f"Launch failed: {e}", file=sys.stderr)
-            sys.exit(1)
-        return  # unreachable after exec, but explicit for clarity
+        _do_launch_sequence(cfg, last)
+        return
 
-    # Default / --pick: run TUI
-    app = App()
+    # If segment args fully cover required segments (and --pick not set), launch directly
+    if segment_overrides and not args.pick:
+        # Merge: last_config defaults < segment args
+        merged = dict(cfg.state.get("last_config", {}))
+        merged.update(segment_overrides)
+        # Check that all required segments have a value
+        required_keys = {s["key"] for s in cfg.segments_def
+                         if s["key"] in enabled and s.get("required", False)}
+        if all(merged.get(k) for k in required_keys):
+            _do_launch_sequence(cfg, merged)
+            return
+        # Otherwise fall through to TUI with overrides applied
+
+    # Default / --pick: run TUI (with optional pre-fills from args)
+    app = App(cfg=cfg, overrides=segment_overrides)
     selections = app.run_tui()
     if selections is None:
         return
 
-    # Launch sequence: health check, hooks, save state, resolve config, exec
-    # Terminal is already restored by App.run_tui()'s finally block,
-    # so health check print/input happens on the normal terminal
-    if app.cfg.config.get("health_check_on_launch", True):
-        results = run_health_check()
-        warnings = [r for r in results if not r.ok]
-        if warnings:
-            print("Health warnings:")
-            print_health_report(warnings)
-            print("Press Enter to continue or Ctrl-C to abort...")
-            try:
-                input()
-            except KeyboardInterrupt:
-                print()
-                sys.exit(1)
-    if not run_hooks("pre-launch", selections):
-        print("Pre-launch hook failed. Aborting.")
-        sys.exit(1)
-    # Save state only after hooks succeed, so launch_count isn't inflated by aborts
-    save_launch_state(app.cfg, selections)
-    try:
-        cwd, argv, env = resolve_launch_config(
-            selections, app.cfg.options_def, app.cfg.config.get("default_flags", [])
-        )
-        do_launch(cwd, argv, env)
-    except OSError as e:
-        print(f"Launch failed: {e}", file=sys.stderr)
-        sys.exit(1)
+    _do_launch_sequence(app.cfg, selections)
