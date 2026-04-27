@@ -8,12 +8,103 @@ import sys
 
 from .app import App
 from .config import ConfigManager
-from .constants import LAUNCHER_DIR, VERSIONS_DIR, CLAUDE_SYMLINK
+from .constants import LAUNCHER_DIR, OPTIONS_FILE, VERSIONS_DIR, CLAUDE_SYMLINK
 from .health import run_health_check, print_health_report
 from .hooks import run_hooks
 from .launch import resolve_launch_config, do_launch
 from .segment import version_sort_key
 from .state import save_launch_state
+
+
+def _do_uninstall(version: str) -> int:
+    """Delete an installed Claude Code version binary.
+
+    Refuses to delete the version the `claude` symlink currently points to,
+    since that would break the default `claude` command. Returns a process
+    exit code.
+    """
+    target = VERSIONS_DIR / version
+    if not target.exists():
+        print(f"Version {version} is not installed at {target}", file=sys.stderr)
+        return 1
+
+    # Refuse to remove the version the symlink currently resolves to.
+    try:
+        if CLAUDE_SYMLINK.is_symlink() or CLAUDE_SYMLINK.exists():
+            current = CLAUDE_SYMLINK.resolve().name
+            if current == version:
+                print(
+                    f"Refusing to uninstall {version}: it is the current "
+                    f"`claude` symlink target ({CLAUDE_SYMLINK}). "
+                    "Switch to another version first.",
+                    file=sys.stderr,
+                )
+                return 1
+    except OSError:
+        # If we can't resolve the symlink, fall through and uninstall anyway --
+        # a broken symlink isn't a reason to block cleanup.
+        pass
+
+    try:
+        target.unlink()
+    except OSError as e:
+        print(f"Failed to delete {target}: {e}", file=sys.stderr)
+        return 1
+    print(f"Uninstalled {version} ({target})")
+    return 0
+
+
+def _do_reset_options() -> int:
+    """Delete OPTIONS_FILE so it regenerates from defaults on next run.
+
+    Does NOT instantiate ConfigManager -- the next normal run will recreate
+    options.json via `_ensure_dir`. Idempotent: missing file is not an error.
+    """
+    if OPTIONS_FILE.exists():
+        try:
+            OPTIONS_FILE.unlink()
+        except OSError as e:
+            print(f"Failed to delete {OPTIONS_FILE}: {e}", file=sys.stderr)
+            return 1
+        print(f"Deleted {OPTIONS_FILE}; defaults will regenerate on next run.")
+    else:
+        print(f"{OPTIONS_FILE} does not exist; nothing to reset.")
+    return 0
+
+
+def _do_show(cfg: ConfigManager) -> int:
+    """Print a git-status-like summary of last_config, segments, theme, and recent dirs."""
+    enabled = cfg.config.get("enabled_segments", [])
+    last_config = cfg.state.get("last_config", {})
+
+    print("ClaudeLauncher state:")
+    # Compute label width for nice alignment across enabled segments
+    enabled_segs = [s for s in cfg.segments_def if s["key"] in enabled]
+    label_width = max((len(s.get("label", s["key"])) for s in enabled_segs), default=0)
+    for sdef in enabled_segs:
+        key = sdef["key"]
+        label = sdef.get("label", key)
+        value = last_config.get(key, "<unset>")
+        # +1 for the colon, padded to label_width+1 then a space
+        print(f"  {label + ':':<{label_width + 1}} {value}")
+
+    print()
+    print(f"Theme: {cfg.config.get('theme', 'dark')}")
+    default_flags = cfg.config.get("default_flags", [])
+    print(f"Default flags: {' '.join(default_flags) if default_flags else '<none>'}")
+    print(f"Health check on launch: {cfg.config.get('health_check_on_launch', True)}")
+
+    recent_dirs = cfg.state.get("recent_dirs", [])
+    if recent_dirs:
+        shown = recent_dirs[:5]
+        print(f"Recent dirs ({len(shown)} of {len(recent_dirs)}):")
+        for d in shown:
+            print(f"  {d}")
+    else:
+        print("Recent dirs: <none>")
+
+    print(f"Launch count: {cfg.state.get('launch_count', 0)}")
+    return 0
 
 
 def _do_launch_sequence(
@@ -60,6 +151,12 @@ def main() -> None:
     parser.add_argument("--versions", action="store_true", help="list available versions and exit")
     parser.add_argument("--install", metavar="VERSION", default=None,
                         help="download and install a specific Claude Code version, then exit")
+    parser.add_argument("--uninstall", metavar="VERSION", default=None,
+                        help="delete an installed Claude Code version, then exit")
+    parser.add_argument("--reset-options", action="store_true",
+                        help="delete options.json so it regenerates from defaults on next run")
+    parser.add_argument("--show", action="store_true",
+                        help="print current selections and exit")
 
     # Mutually exclusive session passthrough flags (handed to claude as -c / -r)
     # --resume optionally accepts a session ID; without one, Claude opens its picker.
@@ -141,6 +238,18 @@ def main() -> None:
             print(f"\nInstallation failed: {e}", file=sys.stderr)
             sys.exit(1)
         return
+
+    # --uninstall <version>: delete an installed version, then exit
+    if args.uninstall:
+        sys.exit(_do_uninstall(args.uninstall))
+
+    # --reset-options: delete options.json so it regenerates from defaults
+    if args.reset_options:
+        sys.exit(_do_reset_options())
+
+    # --show: print last_config + segment summary, then exit
+    if args.show:
+        sys.exit(_do_show(cfg))
 
     # Collect segment value overrides from CLI args
     segment_overrides: dict[str, str] = {}
