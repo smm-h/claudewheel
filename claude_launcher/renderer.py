@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from .constants import (CLEAR_SCREEN, RESET, BOLD, DIM, move_to)
+from .fuzzy import fuzzy_match_positions
 from .segment import Segment, SegmentBar
 from .terminal import Terminal
 from .theme import ThemeColors
@@ -75,7 +76,13 @@ class Renderer:
                     buf.append(display_value)
                     buf.append(focus_bg + th.search_cursor_fg + "_" + RESET)
                 elif seg.searchable and seg.search_buffer:
-                    # Render search text + cursor character
+                    # Render search text + cursor character. If the search
+                    # matches zero options, paint the buffer text red so the
+                    # user sees their typing isn't matching anything.
+                    if not seg.filtered_options:
+                        no_match_fg = th.search_no_match_fg or focus_fg
+                        # Re-establish bg + no-match fg (overriding focus_fg above)
+                        buf.append(focus_bg + no_match_fg)
                     buf.append(display_value)
                     buf.append(focus_bg + th.search_cursor_fg + "_" + RESET)
                 else:
@@ -172,18 +179,9 @@ class Renderer:
                 break
             display = self._fit_value(opt_text, seg.min_width, seg.max_width)
             buf.append(move_to(row, value_col))
-            if opt_text == self.theme.empty_value_text:
-                buf.append(self.theme.empty_value_fg)
-            elif opt_text == "+":
-                buf.append(DIM)
-            elif seg.installed and opt_text not in seg.installed:
-                buf.append(unavail_fg)
-            elif seg.unavailable and opt_text in seg.unavailable:
-                buf.append(unavail_fg)
-            else:
-                buf.append(option_fg)
-            buf.append(display)
-            buf.append(RESET)
+            self._render_option(
+                buf, seg, opt_text, display, option_fg, unavail_fg
+            )
 
         # Render below options
         for offset, opt_text in enumerate(below, start=1):
@@ -192,18 +190,90 @@ class Renderer:
                 break
             display = self._fit_value(opt_text, seg.min_width, seg.max_width)
             buf.append(move_to(row, value_col))
-            if opt_text == self.theme.empty_value_text:
-                buf.append(self.theme.empty_value_fg)
-            elif opt_text == "+":
-                buf.append(DIM)
-            elif seg.installed and opt_text not in seg.installed:
-                buf.append(unavail_fg)
-            elif seg.unavailable and opt_text in seg.unavailable:
-                buf.append(unavail_fg)
-            else:
-                buf.append(option_fg)
+            self._render_option(
+                buf, seg, opt_text, display, option_fg, unavail_fg
+            )
+
+    def _render_option(
+        self,
+        buf: list[str],
+        seg: Segment,
+        opt_text: str,
+        display: str,
+        option_fg: str,
+        unavail_fg: str,
+    ) -> None:
+        """Render a single fan-out option, applying per-char match highlighting
+        when a search buffer is active and the option is a normal (non-special)
+        entry. Special entries ("+" sentinel, empty placeholder, unavailable,
+        uninstalled) keep their dedicated color and are not highlighted.
+        """
+        # Special entries: own color, no match highlighting
+        if opt_text == self.theme.empty_value_text:
+            buf.append(self.theme.empty_value_fg)
             buf.append(display)
             buf.append(RESET)
+            return
+        if opt_text == "+":
+            buf.append(DIM)
+            buf.append(display)
+            buf.append(RESET)
+            return
+        if seg.installed and opt_text not in seg.installed:
+            buf.append(unavail_fg)
+            buf.append(display)
+            buf.append(RESET)
+            return
+        if seg.unavailable and opt_text in seg.unavailable:
+            buf.append(unavail_fg)
+            buf.append(display)
+            buf.append(RESET)
+            return
+
+        # Normal option: highlight matched chars if a search is active
+        if seg.search_buffer:
+            self._render_highlighted_option(
+                buf, seg.search_buffer, opt_text, display, option_fg
+            )
+        else:
+            buf.append(option_fg)
+            buf.append(display)
+            buf.append(RESET)
+
+    def _render_highlighted_option(
+        self,
+        buf: list[str],
+        query: str,
+        opt_text: str,
+        display: str,
+        base_fg: str,
+    ) -> None:
+        """Append `display` to buf with chars at fuzzy-matched positions
+        rendered in search_match_fg, others in base_fg. Positions are computed
+        against opt_text but applied to display (which may be truncated/padded);
+        positions outside display's range are dropped, and we exclude the final
+        ellipsis char if the value was truncated.
+        """
+        th = self.theme
+        match_fg = th.search_match_fg or base_fg
+        positions = fuzzy_match_positions(query, opt_text)
+        # If display was truncated (ends with ellipsis), the last char is the
+        # ellipsis -- never highlight it. Cap valid positions at len(display)-1
+        # if truncated, or len(display) otherwise (padding is fine to skip).
+        truncated = len(opt_text) > len(display) and display.endswith("\u2026")
+        max_pos = (len(display) - 1) if truncated else len(display)
+        pos_set = {p for p in positions if p < max_pos}
+
+        # Walk display chars, switching between match_fg and base_fg as needed
+        current = base_fg
+        buf.append(current)
+        for i, ch in enumerate(display):
+            target = match_fg if i in pos_set else base_fg
+            if target != current:
+                buf.append(target)
+                current = target
+            buf.append(ch)
+        buf.append(RESET)
 
     def _render_status(self, buf: list[str], bar: SegmentBar, flash: str = "") -> None:
         buf.append(move_to(self.term.rows, 2))
