@@ -136,12 +136,14 @@ def main() -> None:
         if val is not None:
             segment_overrides[key] = val
 
-    # If args fully cover required segments, skip TUI and launch directly
-    merged = dict(cfg.state.get("last_config", {}))
-    merged.update(segment_overrides)
+    # Skip TUI ONLY when the args themselves cover every required segment.
+    # Partial args (e.g. just --directory .) always show the TUI with the
+    # overrides pre-filled, regardless of what's in last_config.
     required_keys = {s["key"] for s in cfg.segments_def
                      if s["key"] in enabled and s.get("required", False)}
-    if segment_overrides and all(merged.get(k) for k in required_keys):
+    if required_keys and all(k in segment_overrides for k in required_keys):
+        merged = dict(cfg.state.get("last_config", {}))
+        merged.update(segment_overrides)
         _do_launch_sequence(cfg, merged)
         return
 
