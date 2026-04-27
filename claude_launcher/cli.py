@@ -62,11 +62,14 @@ def main() -> None:
                         help="download and install a specific Claude Code version, then exit")
 
     # Mutually exclusive session passthrough flags (handed to claude as -c / -r)
+    # --resume optionally accepts a session ID; without one, Claude opens its picker.
+    _RESUME_NO_ID = object()  # sentinel for "-r with no value"
     session_group = parser.add_mutually_exclusive_group()
     session_group.add_argument("-c", "--continue", dest="cont", action="store_true",
                                help="continue the most recent Claude conversation")
-    session_group.add_argument("-r", "--resume", action="store_true",
-                               help="open Claude's session resume picker")
+    session_group.add_argument("-r", "--resume", nargs="?", default=None, const=_RESUME_NO_ID,
+                               metavar="SESSION_ID",
+                               help="resume a Claude session (with optional ID, or open picker)")
 
     # Dynamic --<segment_key> args, one per enabled segment
     seg_group = parser.add_argument_group("segment values")
@@ -150,8 +153,10 @@ def main() -> None:
     extra_flags: list[str] = []
     if args.cont:
         extra_flags.append("--continue")
-    elif args.resume:
+    elif args.resume is not None:
         extra_flags.append("--resume")
+        if args.resume is not _RESUME_NO_ID:
+            extra_flags.append(args.resume)
 
     # Skip TUI ONLY when the args themselves cover every required segment.
     # Partial args (e.g. just --directory .) always show the TUI with the
