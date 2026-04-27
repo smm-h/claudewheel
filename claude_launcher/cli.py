@@ -52,9 +52,6 @@ def main() -> None:
     segment_keys = [s["key"] for s in cfg.segments_def if s["key"] in enabled]
 
     parser = argparse.ArgumentParser(prog="c", description="ClaudeLauncher - TUI launcher for Claude Code")
-    parser.add_argument("preset", nargs="?", default=None, help="preset name (reserved for future use)")
-    parser.add_argument("--last", action="store_true", help="relaunch with last-used config, no TUI")
-    parser.add_argument("--pick", action="store_true", help="force TUI even if --last or all segment args are set")
     parser.add_argument("--health", action="store_true", help="run health check and exit")
     parser.add_argument("--config", action="store_true", help="open ~/.claudelauncher/ in $EDITOR")
     parser.add_argument("--versions", action="store_true", help="list available versions and exit")
@@ -139,30 +136,16 @@ def main() -> None:
         if val is not None:
             segment_overrides[key] = val
 
-    # --last (and not --pick): relaunch from saved state, with arg overrides
-    if args.last and not args.pick:
-        last = dict(cfg.state.get("last_config", {}))
-        last.update(segment_overrides)
-        if not last:
-            print("No last config found. Run without --last to use the TUI.")
-            return
-        _do_launch_sequence(cfg, last)
+    # If args fully cover required segments, skip TUI and launch directly
+    merged = dict(cfg.state.get("last_config", {}))
+    merged.update(segment_overrides)
+    required_keys = {s["key"] for s in cfg.segments_def
+                     if s["key"] in enabled and s.get("required", False)}
+    if segment_overrides and all(merged.get(k) for k in required_keys):
+        _do_launch_sequence(cfg, merged)
         return
 
-    # If segment args fully cover required segments (and --pick not set), launch directly
-    if segment_overrides and not args.pick:
-        # Merge: last_config defaults < segment args
-        merged = dict(cfg.state.get("last_config", {}))
-        merged.update(segment_overrides)
-        # Check that all required segments have a value
-        required_keys = {s["key"] for s in cfg.segments_def
-                         if s["key"] in enabled and s.get("required", False)}
-        if all(merged.get(k) for k in required_keys):
-            _do_launch_sequence(cfg, merged)
-            return
-        # Otherwise fall through to TUI with overrides applied
-
-    # Default / --pick: run TUI (with optional pre-fills from args)
+    # Otherwise show the TUI (pre-filled from last_config + arg overrides)
     app = App(cfg=cfg, overrides=segment_overrides)
     selections = app.run_tui()
     if selections is None:
