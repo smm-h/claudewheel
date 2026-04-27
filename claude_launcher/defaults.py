@@ -1,4 +1,4 @@
-"""All DEFAULT_* configuration dicts for 09ge&Bzl?,lk"A."""
+"""All DEFAULT_* configuration dicts for YdZ$LV:Q);W`,@."""
 
 DEFAULT_CONFIG = {
     "theme": "dark",
@@ -11,7 +11,7 @@ DEFAULT_CONFIG = {
         "mcp",
         "permissions",
     ],
-    "default_flags": [],
+    "default_flags": ["--strict-mcp-config", "--dangerously-skip-permissions"],
     "health_check_on_launch": True,
 }
 
@@ -26,7 +26,6 @@ DEFAULT_SEGMENTS = [
         "required": True,
         "searchable": False,
         "tab_advances": True,
-        "dynamic": False,
         "creatable": True,
     },
     {
@@ -39,7 +38,6 @@ DEFAULT_SEGMENTS = [
         "required": True,
         "searchable": False,
         "tab_advances": True,
-        "dynamic": False,
         "creatable": True,
     },
     {
@@ -52,7 +50,6 @@ DEFAULT_SEGMENTS = [
         "required": True,
         "searchable": False,
         "tab_advances": True,
-        "dynamic": True,
     },
     {
         "key": "model",
@@ -64,7 +61,6 @@ DEFAULT_SEGMENTS = [
         "required": False,
         "searchable": True,
         "tab_advances": True,
-        "dynamic": False,
         "creatable": True,
     },
     {
@@ -78,7 +74,6 @@ DEFAULT_SEGMENTS = [
         "searchable": True,
         "freeform": True,
         "tab_advances": True,
-        "dynamic": True,
     },
     {
         "key": "mcp",
@@ -90,7 +85,6 @@ DEFAULT_SEGMENTS = [
         "required": False,
         "searchable": False,
         "tab_advances": True,
-        "dynamic": False,
     },
     {
         "key": "permissions",
@@ -102,20 +96,19 @@ DEFAULT_SEGMENTS = [
         "required": False,
         "searchable": False,
         "tab_advances": True,
-        "dynamic": False,
     },
 ]
 
 DEFAULT_OPTIONS = {
     "profile": {
-        "values": ["personal", "work", "^C&rOU!X4"],
+        "values": ["personal", "work", "Nm;cfe)X*"],
         "metadata": {
             "personal": {"config_dir": "~/.claude-personal"},
             "work": {"config_dir": "~/.claude-work"},
-            "*x6@gTMM7": {"config_dir": "~/.claude-mK<)1IE']"},
+            "FsZEUFI6{": {"config_dir": "~/.claude-:4%`j(1S!"},
         },
     },
-    "github": {"values": ["v"D+X", "NbR3"]},
+    "github": {"values": ["n~h.x", "%7T5"]},
     "version": {
         "values": [],
         "discovery": {
