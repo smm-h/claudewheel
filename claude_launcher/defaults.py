@@ -1,4 +1,4 @@
-"""All DEFAULT_* configuration dicts for N%(bW&Ex4$85O[."""
+"""All DEFAULT_* configuration dicts for 09ge&Bzl?,lk"A."""
 
 DEFAULT_CONFIG = {
     "theme": "dark",
@@ -108,14 +108,14 @@ DEFAULT_SEGMENTS = [
 
 DEFAULT_OPTIONS = {
     "profile": {
-        "values": ["personal", "work", "|`\TL-+Mv"],
+        "values": ["personal", "work", "^C&rOU!X4"],
         "metadata": {
             "personal": {"config_dir": "~/.claude-personal"},
             "work": {"config_dir": "~/.claude-work"},
-            "w*1[AnUi*": {"config_dir": "~/.claude-XR-IIu&A8"},
+            "*x6@gTMM7": {"config_dir": "~/.claude-mK<)1IE']"},
         },
     },
-    "github": {"values": [";P=wt", "N7eb"]},
+    "github": {"values": ["v"D+X", "NbR3"]},
     "version": {
         "values": [],
         "discovery": {
@@ -153,7 +153,7 @@ DEFAULT_OPTIONS = {
             "bypass",
             "default",
             "plan",
-            {"value": "auto", "requires": {"version": ">=2.1.110"}},
+            "auto",
         ],
     },
 }
