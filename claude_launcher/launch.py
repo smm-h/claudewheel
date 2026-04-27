@@ -27,6 +27,7 @@ def resolve_launch_config(
     selections: dict[str, str | None],
     options_def: dict,
     default_flags: list[str],
+    extra_flags: list[str] | None = None,
 ) -> tuple[str, list[str], dict[str, str]]:
     """Build (cwd, argv, env) for os.execvpe from TUI selections.
 
@@ -100,6 +101,8 @@ def resolve_launch_config(
 
     # 8. Argv
     argv = [binary_path] + default_flags + mcp_flags + perm_flags + model_flags
+    if extra_flags:
+        argv += extra_flags
 
     return (cwd, argv, env)
 

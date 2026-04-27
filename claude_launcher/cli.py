@@ -16,7 +16,9 @@ from .segment import version_sort_key
 from .state import save_launch_state
 
 
-def _do_launch_sequence(cfg: ConfigManager, selections: dict) -> None:
+def _do_launch_sequence(
+    cfg: ConfigManager, selections: dict, extra_flags: list[str] | None = None
+) -> None:
     """Run health check, hooks, save state, resolve, and exec. Does not return on success."""
     if cfg.config.get("health_check_on_launch", True):
         results = run_health_check()
@@ -37,7 +39,8 @@ def _do_launch_sequence(cfg: ConfigManager, selections: dict) -> None:
     save_launch_state(cfg, selections)
     try:
         cwd, argv, env = resolve_launch_config(
-            selections, cfg.options_def, cfg.config.get("default_flags", [])
+            selections, cfg.options_def, cfg.config.get("default_flags", []),
+            extra_flags=extra_flags,
         )
         do_launch(cwd, argv, env)
     except OSError as e:
@@ -57,6 +60,13 @@ def main() -> None:
     parser.add_argument("--versions", action="store_true", help="list available versions and exit")
     parser.add_argument("--install", metavar="VERSION", default=None,
                         help="download and install a specific Claude Code version, then exit")
+
+    # Mutually exclusive session passthrough flags (handed to claude as -c / -r)
+    session_group = parser.add_mutually_exclusive_group()
+    session_group.add_argument("-c", "--continue", dest="cont", action="store_true",
+                               help="continue the most recent Claude conversation")
+    session_group.add_argument("-r", "--resume", action="store_true",
+                               help="open Claude's session resume picker")
 
     # Dynamic --<segment_key> args, one per enabled segment
     seg_group = parser.add_argument_group("segment values")
@@ -136,6 +146,13 @@ def main() -> None:
         if val is not None:
             segment_overrides[key] = val
 
+    # Build extra Claude Code flags from passthrough args
+    extra_flags: list[str] = []
+    if args.cont:
+        extra_flags.append("--continue")
+    elif args.resume:
+        extra_flags.append("--resume")
+
     # Skip TUI ONLY when the args themselves cover every required segment.
     # Partial args (e.g. just --directory .) always show the TUI with the
     # overrides pre-filled, regardless of what's in last_config.
@@ -144,7 +161,7 @@ def main() -> None:
     if required_keys and all(k in segment_overrides for k in required_keys):
         merged = dict(cfg.state.get("last_config", {}))
         merged.update(segment_overrides)
-        _do_launch_sequence(cfg, merged)
+        _do_launch_sequence(cfg, merged, extra_flags=extra_flags)
         return
 
     # Otherwise show the TUI (pre-filled from last_config + arg overrides)
@@ -153,4 +170,4 @@ def main() -> None:
     if selections is None:
         return
 
-    _do_launch_sequence(app.cfg, selections)
+    _do_launch_sequence(app.cfg, selections, extra_flags=extra_flags)
