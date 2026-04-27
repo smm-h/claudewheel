@@ -53,8 +53,11 @@ class Segment:
         """Move selection up (+1) or down (-1) through options.
 
         The ring has n+1 positions: [-1, 0, 1, ..., n-1] where -1 is the
-        blank/unselected state. Cycling wraps through all positions including
-        blank, so the user can always return to an unselected state.
+        blank/unselected state. With wrap=True, cycling continuously rotates
+        through all positions including blank. With wrap=False, blank is
+        reachable from EITHER end of the option list (UP from first OR
+        DOWN from last), but going past blank in either direction stays at
+        blank rather than continuing to the other end.
         """
         if not self.options:
             return
@@ -66,7 +69,9 @@ class Segment:
         if self.wrap:
             ring_pos %= (n + 1)
         else:
-            ring_pos = max(0, min(n, ring_pos))
+            # Off either end -> blank (ring_pos 0). Stay at blank otherwise.
+            if ring_pos < 0 or ring_pos > n:
+                ring_pos = 0
         self.selected_idx = ring_pos - 1  # back to [-1, n-1]
 
     @property

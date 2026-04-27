@@ -49,27 +49,48 @@ class SegmentCycleWrapTests(unittest.TestCase):
 
 
 class SegmentCycleNoWrapTests(unittest.TestCase):
-    """Verify clamping behaviour with wrap=False."""
+    """Verify wrap=False semantics: blank reachable from BOTH ends, no continuous wrap."""
 
-    def test_forward_from_last_clamps_to_last(self) -> None:
-        """Going +1 from the last option clamps; we do NOT fall through to -1."""
-        # With wrap=False: from selected_idx=2, ring_pos=3 (=n), +1 -> 4 -> clamp to n=3,
-        # back to selected_idx=2.
+    def test_forward_from_last_reaches_blank(self) -> None:
+        """Going +1 from the last option lands on -1 (blank) -- symmetric with UP-from-first."""
         seg = Segment(
             key="k", label="K", options=["a", "b", "c"], wrap=False, selected_idx=2
         )
         seg.cycle(+1)
-        self.assertEqual(seg.selected_idx, 2)
+        self.assertEqual(seg.selected_idx, -1)
 
-    def test_backward_from_blank_clamps_to_blank(self) -> None:
-        """Going -1 from -1 clamps; we do NOT jump to the last option."""
-        # With wrap=False: from selected_idx=-1, ring_pos=0, -1 -> -1 -> clamp to 0,
-        # back to selected_idx=-1.
+    def test_backward_from_first_reaches_blank(self) -> None:
+        """Going -1 from the first option lands on -1 (blank) -- existing behavior preserved."""
+        seg = Segment(
+            key="k", label="K", options=["a", "b", "c"], wrap=False, selected_idx=0
+        )
+        seg.cycle(-1)
+        self.assertEqual(seg.selected_idx, -1)
+
+    def test_past_blank_stays_at_blank(self) -> None:
+        """Once at blank, going further in either direction stays at blank (no continuous wrap)."""
         seg = Segment(
             key="k", label="K", options=["a", "b", "c"], wrap=False, selected_idx=-1
         )
         seg.cycle(-1)
         self.assertEqual(seg.selected_idx, -1)
+        # And +1 from blank still re-enters the option list at the first option
+        seg.cycle(+1)
+        self.assertEqual(seg.selected_idx, 0)
+
+    def test_forward_past_last_then_again_stays_at_blank(self) -> None:
+        """DOWN from last → blank, then DOWN again stays at blank (no wrap to first)."""
+        seg = Segment(
+            key="k", label="K", options=["a", "b", "c"], wrap=False, selected_idx=2
+        )
+        seg.cycle(+1)
+        self.assertEqual(seg.selected_idx, -1)
+        seg.cycle(+1)
+        self.assertEqual(seg.selected_idx, 0)  # re-enters at first
+        # But if we re-test starting from blank going +1 twice, we move into options
+        seg.selected_idx = -1
+        seg.cycle(+1)
+        self.assertEqual(seg.selected_idx, 0)
 
     def test_normal_steps_still_work(self) -> None:
         """Non-boundary cycling still moves one step at a time."""
