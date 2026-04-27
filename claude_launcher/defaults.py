@@ -153,7 +153,7 @@ DEFAULT_OPTIONS = {
             "bypass",
             "default",
             "plan",
-            {"value": "auto", "requires": {"version": ">=2.1.110"}},
+            "auto",
         ],
     },
 }

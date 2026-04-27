@@ -49,27 +49,9 @@ def check_tmp_claude_size() -> HealthResult:
         return HealthResult(True, "/tmp/claude", f"check failed: {e}")
 
 
-def check_ghost_files() -> HealthResult:
-    """Check for deleted-but-open files via lsof."""
-    try:
-        result = subprocess.run(
-            ["lsof", "+L1", "-t"],
-            capture_output=True, text=True, timeout=5
-        )
-        pids = [l.strip() for l in result.stdout.strip().split("\n") if l.strip()]
-        count = len(pids)
-        if count > 10:
-            return HealthResult(False, "ghost files", f"{count} open deleted files")
-        return HealthResult(True, "ghost files", f"{count} open deleted files")
-    except FileNotFoundError:
-        return HealthResult(True, "ghost files", "lsof not found")
-    except Exception as e:
-        return HealthResult(True, "ghost files", f"check failed: {e}")
-
-
 def run_health_check() -> list[HealthResult]:
     """Run all health checks and return results."""
-    return [check_tmpfs_quota(), check_tmp_claude_size(), check_ghost_files()]
+    return [check_tmpfs_quota(), check_tmp_claude_size()]
 
 
 def print_health_report(results: list[HealthResult]) -> None:
