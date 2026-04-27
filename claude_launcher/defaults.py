@@ -1,4 +1,4 @@
-"""All DEFAULT_* configuration dicts for /=lN?|%X_K.yos."""
+"""All DEFAULT_* configuration dicts for N%(bW&Ex4$85O[."""
 
 DEFAULT_CONFIG = {
     "theme": "dark",
@@ -108,14 +108,14 @@ DEFAULT_SEGMENTS = [
 
 DEFAULT_OPTIONS = {
     "profile": {
-        "values": ["personal", "work", "*5MR9{Z`D"],
+        "values": ["personal", "work", "|`\TL-+Mv"],
         "metadata": {
             "personal": {"config_dir": "~/.claude-personal"},
             "work": {"config_dir": "~/.claude-work"},
-            "<=W8N$.6'": {"config_dir": "~/.claude-L0_>^09O@"},
+            "w*1[AnUi*": {"config_dir": "~/.claude-XR-IIu&A8"},
         },
     },
-    "github": {"values": ["1,?o#", "XK"P"]},
+    "github": {"values": [";P=wt", "N7eb"]},
     "version": {
         "values": [],
         "discovery": {
@@ -133,9 +133,16 @@ DEFAULT_OPTIONS = {
         },
     },
     "model": {
+        # The [1m] suffix enables the 1M token context window for models that
+        # support it (Opus 4.6, Opus 4.7, Sonnet 4.6). Claude Code strips the
+        # suffix before sending to the API.
         "values": [
+            "claude-opus-4-7",
+            "claude-opus-4-7[1m]",
             "claude-opus-4-6",
+            "claude-opus-4-6[1m]",
             "claude-sonnet-4-6",
+            "claude-sonnet-4-6[1m]",
             "claude-haiku-4-5-20251001",
             "claude-sonnet-4-5-20241022",
         ],
