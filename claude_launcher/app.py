@@ -13,9 +13,18 @@ from .renderer import Renderer
 
 
 class App:
-    def __init__(self):
-        self.cfg = ConfigManager()
+    def __init__(self, cfg: ConfigManager | None = None, overrides: dict[str, str] | None = None):
+        self.cfg = cfg if cfg is not None else ConfigManager()
         self.bar = build_segment_bar(self.cfg)
+        # Apply CLI arg overrides (after last_config pre-fill, before TUI)
+        if overrides:
+            for seg in self.bar.segments:
+                if seg.key in overrides:
+                    val = overrides[seg.key]
+                    if not seg.select_value(val) and seg.freeform:
+                        # Freeform segment: add the value if not already in options
+                        seg.options.append(val)
+                        seg.select_value(val)
         self.terminal = Terminal()
         self.theme = parse_theme(self.cfg.theme)
         self.renderer = Renderer(self.terminal, self.theme)
