@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -225,6 +226,52 @@ def discover_options(options_def: dict, state: dict) -> dict[str, list[str]]:
                             seen.add(v)
                             merged.append(v)
                     values = merged
+                case "claude_config_scan":
+                    # Discover Claude profiles from ~/.claude and ~/.claude-* dirs
+                    base = Path(disc.get("base_dir", "~")).expanduser()
+                    profiles: list[str] = []
+                    # The default Claude config dir
+                    default_dir = base / ".claude"
+                    if default_dir.is_dir():
+                        profiles.append("default")
+                    # Scan for ~/.claude-* profile directories
+                    if base.is_dir():
+                        for entry in sorted(base.iterdir()):
+                            if entry.is_dir() and entry.name.startswith(".claude-"):
+                                profile_name = entry.name[len(".claude-"):]
+                                if profile_name:
+                                    profiles.append(profile_name)
+                    if profiles:
+                        values = profiles
+                    # Build metadata mapping profile names to config dirs
+                    # so launch.py can set CLAUDE_CONFIG_DIR correctly
+                    metadata: dict[str, dict[str, str]] = {}
+                    if "default" in profiles:
+                        metadata["default"] = {"config_dir": "~/.claude"}
+                    for p in profiles:
+                        if p != "default":
+                            metadata[p] = {"config_dir": f"~/.claude-{p}"}
+                    opt["metadata"] = metadata
+                case "gh_auth":
+                    # Discover GitHub accounts from gh CLI auth status
+                    try:
+                        result = subprocess.run(
+                            ["gh", "auth", "status"],
+                            capture_output=True, text=True, timeout=5,
+                        )
+                        output = result.stdout + result.stderr
+                        accounts = re.findall(
+                            r"Logged in to github\.com account (\S+)", output,
+                        )
+                        if accounts:
+                            # Deduplicate while preserving order
+                            seen_accts: set[str] = set()
+                            for acct in accounts:
+                                if acct not in seen_accts:
+                                    seen_accts.add(acct)
+                                    values.append(acct)
+                    except (FileNotFoundError, subprocess.TimeoutExpired):
+                        pass
                 case "state_field":
                     # Merge state-tracked values with static defaults, preserving order
                     state_values = state.get(disc["field"], [])
