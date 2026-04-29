@@ -34,6 +34,7 @@ class Segment:
     unavailable: set[str] = field(default_factory=set)  # dynamically computed per render cycle
     creatable: bool = False  # whether this segment supports inline "+" creation
     freeform: bool = False   # whether typed text can be submitted as a new value directly
+    _freeform_editing: bool = False  # True while actively editing a freeform buffer
     creating: bool = False   # True when in creation-mode text input
     create_buffer: str = ""  # text being typed for the new option
 

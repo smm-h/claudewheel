@@ -79,8 +79,10 @@ class App:
             return self._handle_create_key(key, focused)
 
         # Freeform editing mode: when a freeform segment has an active search buffer,
-        # treat it like a text input (UP/DOWN/LEFT/RIGHT don't destroy the buffer)
-        if focused.freeform and focused.search_buffer:
+        # treat it like a text input (UP/DOWN/LEFT/RIGHT don't destroy the buffer).
+        # Use 'is not None' so an empty buffer ("") still routes here — prevents
+        # the main BACKSPACE handler from re-seeding the buffer from the old value.
+        if focused.freeform and focused.search_buffer is not None and focused._freeform_editing:
             return self._handle_freeform_key(key, focused)
 
         # Pending install confirmation
@@ -90,17 +92,21 @@ class App:
         match key:
             case "LEFT":
                 focused.search_buffer = ""
+                focused._freeform_editing = False
                 self.bar.move_focus(-1)
             case "RIGHT":
                 focused.search_buffer = ""
+                focused._freeform_editing = False
                 self.bar.move_focus(1)
             case "UP":
                 if focused.search_buffer:
                     focused.search_buffer = ""
+                focused._freeform_editing = False
                 focused.cycle(-1)
             case "DOWN":
                 if focused.search_buffer:
                     focused.search_buffer = ""
+                focused._freeform_editing = False
                 focused.cycle(1)
             case "ENTER":
                 # Enter creation mode if on the "+" sentinel
@@ -147,21 +153,24 @@ class App:
                 elif focused.tab_advances:
                     self.bar.move_focus(1)
             case "BACKSPACE":
-                if focused.freeform and not focused.search_buffer and focused.value:
-                    # Seed buffer from selected value so it becomes editable
+                if focused.freeform and not focused._freeform_editing and focused.value:
+                    # First backspace on a freeform segment: seed buffer from current value
                     focused.search_buffer = focused.value[:-1]
+                    focused._freeform_editing = True
                 elif focused.searchable and focused.search_buffer:
                     focused.search_buffer = focused.search_buffer[:-1]
             case "ESC":
                 focused.search_buffer = ""
+                focused._freeform_editing = False
             case "CTRL_C":
                 return "quit"
             case _:
                 # Single printable characters
                 if len(key) == 1 and key.isprintable():
-                    if focused.freeform and not focused.search_buffer and focused.value:
-                        # Seed buffer from selected value so typing appends to it
+                    if focused.freeform and not focused._freeform_editing and focused.value:
+                        # First keypress on a freeform segment: seed buffer from current value
                         focused.search_buffer = focused.value + key
+                        focused._freeform_editing = True
                     elif focused.searchable and (focused.search_buffer or key != "q"):
                         focused.search_buffer += key
                     elif key == "q":
@@ -179,6 +188,7 @@ class App:
                         seg.options.append(text)
                     seg.select_value(text)
                 seg.search_buffer = ""
+                seg._freeform_editing = False
                 if seg.tab_advances:
                     self.bar.move_focus(1)
                 return None
@@ -188,6 +198,7 @@ class App:
                 if matches:
                     seg.select_value(matches[0])
                 seg.search_buffer = ""
+                seg._freeform_editing = False
                 if seg.tab_advances:
                     self.bar.move_focus(1)
                 return None
@@ -196,9 +207,11 @@ class App:
                 return None
             case "ESC":
                 seg.search_buffer = ""
+                seg._freeform_editing = False
                 return None
             case "CTRL_C":
                 seg.search_buffer = ""
+                seg._freeform_editing = False
                 return "quit"
             case _:
                 if len(key) == 1 and key.isprintable():
