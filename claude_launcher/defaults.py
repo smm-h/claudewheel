@@ -101,14 +101,18 @@ DEFAULT_SEGMENTS = [
 
 DEFAULT_OPTIONS = {
     "profile": {
-        "values": ["personal", "work", "the-third"],
-        "metadata": {
-            "personal": {"config_dir": "~/.claude-personal"},
-            "work": {"config_dir": "~/.claude-work"},
-            "the-third": {"config_dir": "~/.claude-the-third"},
+        "values": [],
+        "discovery": {
+            "type": "claude_config_scan",
+            "base_dir": "~",
         },
     },
-    "github": {"values": ["smm-h", "mhxv"]},
+    "github": {
+        "values": [],
+        "discovery": {
+            "type": "gh_auth",
+        },
+    },
     "version": {
         "values": [],
         "discovery": {
@@ -121,7 +125,7 @@ DEFAULT_OPTIONS = {
         "values": [],
         "discovery": {
             "type": "directory_scan",
-            "parents": ["~/Projects", "~/Work"],
+            "parents": ["~/Projects", "~/repos", "~/src", "~/code", "~/dev", "~/Work", "~/work"],
             "state_field": "recent_dirs",
         },
     },
