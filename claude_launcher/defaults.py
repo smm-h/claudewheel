@@ -1,4 +1,4 @@
-"""All DEFAULT_* configuration dicts for YdZ$LV:Q);W`,@."""
+"""All DEFAULT_* configuration dicts for Z{M;Dc+!W5r_=v."""
 
 DEFAULT_CONFIG = {
     "theme": "dark",
@@ -101,14 +101,18 @@ DEFAULT_SEGMENTS = [
 
 DEFAULT_OPTIONS = {
     "profile": {
-        "values": ["personal", "work", "Nm;cfe)X*"],
-        "metadata": {
-            "personal": {"config_dir": "~/.claude-personal"},
-            "work": {"config_dir": "~/.claude-work"},
-            "FsZEUFI6{": {"config_dir": "~/.claude-:4%`j(1S!"},
+        "values": [],
+        "discovery": {
+            "type": "claude_config_scan",
+            "base_dir": "~",
         },
     },
-    "github": {"values": ["n~h.x", "%7T5"]},
+    "github": {
+        "values": [],
+        "discovery": {
+            "type": "gh_auth",
+        },
+    },
     "version": {
         "values": [],
         "discovery": {
@@ -121,7 +125,7 @@ DEFAULT_OPTIONS = {
         "values": [],
         "discovery": {
             "type": "directory_scan",
-            "parents": ["~/Projects", "~/Work"],
+            "parents": ["~/Projects", "~/repos", "~/src", "~/code", "~/dev", "~/Work", "~/work"],
             "state_field": "recent_dirs",
         },
     },
