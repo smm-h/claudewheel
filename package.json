@@ -1,0 +1,29 @@
+{
+  "name": "claudewheel",
+  "version": "0.1.0",
+  "description": "TUI launcher for Claude Code — dial in your config and go",
+  "license": "MIT",
+  "bin": {
+    "claudewheel": "bin/claudewheel.js"
+  },
+  "files": [
+    "bin/",
+    "claude_launcher/",
+    "c"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/smm-h/claudewheel.git"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claude",
+    "claude-code",
+    "launcher",
+    "tui",
+    "config"
+  ],
+  "author": "smm-h"
+}
