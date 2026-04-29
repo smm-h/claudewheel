@@ -1,5 +1,19 @@
 # ClaudeLauncher Changelog
 
+## 0.1.2
+- Exclude `__pycache__` bytecode from npm tarball (package size: 75kB -> 26kB)
+
+## 0.1.1
+- Remove hardcoded personal data from defaults (profile names, GitHub usernames)
+- Add runtime discovery for profile segment (`claude_config_scan` — scans `~/.claude-*` directories)
+- Add runtime discovery for github segment (`gh_auth` — parses `gh auth status`)
+- Expand directory scan parents to common project directories
+
+## 0.1.0
+- Initial npm release as `claudewheel`
+- Node.js bin wrapper with Python 3.14+ version check
+- CI and publish workflows scaffolded via share-on-npm
+
 ## Architecture
 
 - 16-module Python package (no external deps, stdlib only -- targets Python 3.14)
