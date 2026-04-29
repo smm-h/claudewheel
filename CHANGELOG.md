@@ -12,7 +12,7 @@
 ## 0.1.0
 - Initial npm release as `claudewheel`
 - Node.js bin wrapper with Python 3.14+ version check
-- CI and publish workflows scaffolded via share-on-npm
+- CI and publish workflows scaffolded via share-it-on
 
 ## Architecture
 
