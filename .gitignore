@@ -1,2 +1,15 @@
 __pycache__/
 *.pyc
+
+# Added by share-it-on
+node_modules/
+*.log
+.DS_Store
+coverage/
+dist/
+*.egg-info/
+.share-it-on-notes-*.tmp
+.credentials.json
+.*-cache.json
+.env
+.env.local
