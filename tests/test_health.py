@@ -1,0 +1,443 @@
+"""Tests for health check functions in claude_launcher.health."""
+
+from __future__ import annotations
+
+import json
+import os
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from claude_launcher.health import (
+    HealthResult,
+    _discover_profiles,
+    check_hooks_wired,
+    check_settings_defaults,
+    check_shared_symlinks,
+    check_tokens,
+    check_xattr_coverage,
+)
+
+
+def _xattr_supported() -> bool:
+    """Return True if user xattrs work in tempfile dirs."""
+    try:
+        with tempfile.NamedTemporaryFile() as f:
+            os.setxattr(f.name, "user.test", b"1")
+        return True
+    except OSError:
+        return False
+
+
+HAVE_XATTR = _xattr_supported()
+
+
+class _HomeDirTestCase(unittest.TestCase):
+    """Base class that sets up a temp dir as Path.home() and patches it."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.home = Path(self._tmp.name)
+        self._patcher = patch.object(Path, "home", return_value=self.home)
+        self._patcher.start()
+
+    def tearDown(self) -> None:
+        self._patcher.stop()
+        self._tmp.cleanup()
+
+    def _make_profile(self, name: str) -> Path:
+        """Create a profile dir with .credentials.json and return its path."""
+        pdir = self.home / f".claude-{name}"
+        pdir.mkdir(parents=True, exist_ok=True)
+        (pdir / ".credentials.json").write_text("{}")
+        return pdir
+
+
+# ---------------------------------------------------------------------------
+# _discover_profiles
+# ---------------------------------------------------------------------------
+
+
+class DiscoverProfilesTests(_HomeDirTestCase):
+    """Tests for _discover_profiles()."""
+
+    def test_finds_dirs_with_credentials(self) -> None:
+        """Profiles with .credentials.json are discovered."""
+        self._make_profile("alpha")
+        self._make_profile("beta")
+        result = _discover_profiles()
+        names = [name for name, _path in result]
+        self.assertEqual(names, ["alpha", "beta"])
+
+    def test_ignores_dirs_without_credentials(self) -> None:
+        """Dirs named .claude-* but missing .credentials.json are skipped."""
+        # Has credentials
+        self._make_profile("real")
+        # Missing credentials
+        fake = self.home / ".claude-fake"
+        fake.mkdir()
+        result = _discover_profiles()
+        names = [name for name, _path in result]
+        self.assertEqual(names, ["real"])
+
+    def test_returns_sorted_list(self) -> None:
+        """Profiles are returned sorted by directory name."""
+        self._make_profile("zeta")
+        self._make_profile("alpha")
+        self._make_profile("mid")
+        result = _discover_profiles()
+        names = [name for name, _path in result]
+        self.assertEqual(names, ["alpha", "mid", "zeta"])
+
+    def test_returns_empty_when_no_profiles(self) -> None:
+        """Returns empty list when no .claude-* dirs exist."""
+        result = _discover_profiles()
+        self.assertEqual(result, [])
+
+
+# ---------------------------------------------------------------------------
+# check_shared_symlinks
+# ---------------------------------------------------------------------------
+
+
+class CheckSharedSymlinksTests(_HomeDirTestCase):
+    """Tests for check_shared_symlinks()."""
+
+    EXPECTED_DIRS = ["projects", "session-env", "file-history", "tasks", "todos", "paste-cache"]
+
+    def _setup_shared(self) -> Path:
+        """Create ~/.claude-shared/ with all expected subdirs."""
+        shared = self.home / ".claude-shared"
+        shared.mkdir()
+        for d in self.EXPECTED_DIRS:
+            (shared / d).mkdir()
+        return shared
+
+    def _link_profile(self, pdir: Path, shared: Path) -> None:
+        """Create correct symlinks in a profile dir pointing to shared."""
+        for d in self.EXPECTED_DIRS:
+            link = pdir / d
+            link.symlink_to(shared / d)
+
+    def test_ok_when_all_symlinks_correct(self) -> None:
+        """Returns OK when every profile has correct symlinks."""
+        shared = self._setup_shared()
+        pdir = self._make_profile("good")
+        self._link_profile(pdir, shared)
+
+        result = check_shared_symlinks()
+        self.assertTrue(result.ok)
+        self.assertIn("1 profiles OK", result.detail)
+
+    def test_warn_when_symlink_wrong_target(self) -> None:
+        """Returns WARN when a symlink points to the wrong target."""
+        shared = self._setup_shared()
+        pdir = self._make_profile("bad")
+        # Create correct symlinks for most dirs
+        self._link_profile(pdir, shared)
+        # Break one symlink by pointing it elsewhere
+        wrong_target = self.home / "wrong"
+        wrong_target.mkdir()
+        (pdir / "projects").unlink()
+        (pdir / "projects").symlink_to(wrong_target)
+
+        result = check_shared_symlinks()
+        self.assertFalse(result.ok)
+        self.assertIn("bad/projects", result.detail)
+
+    def test_warn_when_dir_not_symlink(self) -> None:
+        """Returns WARN when a profile subdir is a real directory, not a symlink."""
+        shared = self._setup_shared()
+        pdir = self._make_profile("nolink")
+        self._link_profile(pdir, shared)
+        # Replace one symlink with a real dir
+        (pdir / "todos").unlink()
+        (pdir / "todos").mkdir()
+
+        result = check_shared_symlinks()
+        self.assertFalse(result.ok)
+        self.assertIn("nolink/todos", result.detail)
+
+    def test_ok_no_profiles(self) -> None:
+        """Returns OK with detail message when no profiles exist."""
+        result = check_shared_symlinks()
+        self.assertTrue(result.ok)
+        self.assertIn("no profiles found", result.detail)
+
+
+# ---------------------------------------------------------------------------
+# check_xattr_coverage
+# ---------------------------------------------------------------------------
+
+
+@unittest.skipUnless(HAVE_XATTR, "filesystem does not support user xattrs")
+class CheckXattrCoverageTests(_HomeDirTestCase):
+    """Tests for check_xattr_coverage() -- requires xattr support."""
+
+    def _setup_projects(self, count: int, tagged: int) -> None:
+        """Create .jsonl files in ~/.claude-shared/projects/, tagging some with xattr."""
+        projects = self.home / ".claude-shared" / "projects"
+        projects.mkdir(parents=True)
+        for i in range(count):
+            f = projects / f"file{i}.jsonl"
+            f.write_text("{}")
+            if i < tagged:
+                os.setxattr(str(f), b"user.origin-profile", b"test")
+
+    def test_ok_when_all_tagged(self) -> None:
+        """Returns OK when 100% of files have xattr."""
+        self._setup_projects(count=10, tagged=10)
+        result = check_xattr_coverage()
+        self.assertTrue(result.ok)
+        self.assertIn("100%", result.detail)
+
+    def test_ok_when_above_threshold(self) -> None:
+        """Returns OK when >= 95% of files have xattr."""
+        self._setup_projects(count=20, tagged=19)  # 95%
+        result = check_xattr_coverage()
+        self.assertTrue(result.ok)
+
+    def test_warn_when_below_threshold(self) -> None:
+        """Returns WARN when < 95% of files have xattr."""
+        self._setup_projects(count=20, tagged=18)  # 90%
+        result = check_xattr_coverage()
+        self.assertFalse(result.ok)
+        self.assertIn("90%", result.detail)
+
+    def test_ok_when_no_files(self) -> None:
+        """Returns OK when projects dir exists but has no .jsonl files."""
+        projects = self.home / ".claude-shared" / "projects"
+        projects.mkdir(parents=True)
+        result = check_xattr_coverage()
+        self.assertTrue(result.ok)
+        self.assertIn("no .jsonl files", result.detail)
+
+
+class CheckXattrCoverageNoDirTests(_HomeDirTestCase):
+    """Tests for check_xattr_coverage() that don't need xattr support."""
+
+    def test_ok_when_projects_dir_missing(self) -> None:
+        """Returns OK when projects dir does not exist."""
+        result = check_xattr_coverage()
+        self.assertTrue(result.ok)
+        self.assertIn("not found", result.detail)
+
+
+# ---------------------------------------------------------------------------
+# check_hooks_wired
+# ---------------------------------------------------------------------------
+
+
+class CheckHooksWiredTests(_HomeDirTestCase):
+    """Tests for check_hooks_wired()."""
+
+    def _write_settings(self, pdir: Path, settings: dict) -> None:
+        """Write settings.json into a profile directory."""
+        (pdir / "settings.json").write_text(json.dumps(settings))
+
+    def _good_settings(self) -> dict:
+        """Return settings with both required hooks present."""
+        return {
+            "hooks": {
+                "UserPromptSubmit": [
+                    {
+                        "hooks": [
+                            {"command": "/usr/bin/hook-timestamp"},
+                            {"command": "/usr/bin/hook-stamp-origin"},
+                        ]
+                    }
+                ]
+            }
+        }
+
+    def test_ok_when_both_hooks_present(self) -> None:
+        """Returns OK when both hook-timestamp and hook-stamp-origin are present."""
+        pdir = self._make_profile("hooked")
+        self._write_settings(pdir, self._good_settings())
+
+        result = check_hooks_wired()
+        self.assertTrue(result.ok)
+        self.assertIn("1 profiles OK", result.detail)
+
+    def test_warn_when_one_hook_missing(self) -> None:
+        """Returns WARN when only one of the two hooks is present."""
+        pdir = self._make_profile("partial")
+        settings = {
+            "hooks": {
+                "UserPromptSubmit": [
+                    {
+                        "hooks": [
+                            {"command": "/usr/bin/hook-timestamp"},
+                        ]
+                    }
+                ]
+            }
+        }
+        self._write_settings(pdir, settings)
+
+        result = check_hooks_wired()
+        self.assertFalse(result.ok)
+        self.assertIn("missing hook-stamp-origin", result.detail)
+
+    def test_warn_when_no_settings_json(self) -> None:
+        """Returns WARN when settings.json does not exist."""
+        self._make_profile("bare")
+
+        result = check_hooks_wired()
+        self.assertFalse(result.ok)
+        self.assertIn("no settings.json", result.detail)
+
+    def test_ok_no_profiles(self) -> None:
+        """Returns OK when no profiles exist."""
+        result = check_hooks_wired()
+        self.assertTrue(result.ok)
+        self.assertIn("no profiles found", result.detail)
+
+
+# ---------------------------------------------------------------------------
+# check_settings_defaults
+# ---------------------------------------------------------------------------
+
+
+class CheckSettingsDefaultsTests(_HomeDirTestCase):
+    """Tests for check_settings_defaults()."""
+
+    def _write_settings(self, pdir: Path, settings: dict) -> None:
+        (pdir / "settings.json").write_text(json.dumps(settings))
+
+    def _good_settings(self) -> dict:
+        return {
+            "awaySummaryEnabled": False,
+            "cleanupPeriodDays": 365,
+            "autoMemoryEnabled": False,
+        }
+
+    def test_ok_when_all_correct(self) -> None:
+        """Returns OK when all settings match expected defaults."""
+        pdir = self._make_profile("correct")
+        self._write_settings(pdir, self._good_settings())
+
+        result = check_settings_defaults()
+        self.assertTrue(result.ok)
+        self.assertIn("1 profiles OK", result.detail)
+
+    def test_warn_when_away_summary_enabled(self) -> None:
+        """Returns WARN when awaySummaryEnabled is not false."""
+        pdir = self._make_profile("awayOn")
+        settings = self._good_settings()
+        settings["awaySummaryEnabled"] = True
+        self._write_settings(pdir, settings)
+
+        result = check_settings_defaults()
+        self.assertFalse(result.ok)
+        self.assertIn("awaySummaryEnabled != false", result.detail)
+
+    def test_warn_when_cleanup_period_too_low(self) -> None:
+        """Returns WARN when cleanupPeriodDays < 365."""
+        pdir = self._make_profile("lowCleanup")
+        settings = self._good_settings()
+        settings["cleanupPeriodDays"] = 30
+        self._write_settings(pdir, settings)
+
+        result = check_settings_defaults()
+        self.assertFalse(result.ok)
+        self.assertIn("cleanupPeriodDays < 365", result.detail)
+
+    def test_warn_when_cleanup_period_missing(self) -> None:
+        """Returns WARN when cleanupPeriodDays is absent."""
+        pdir = self._make_profile("noCleanup")
+        settings = self._good_settings()
+        del settings["cleanupPeriodDays"]
+        self._write_settings(pdir, settings)
+
+        result = check_settings_defaults()
+        self.assertFalse(result.ok)
+        self.assertIn("cleanupPeriodDays < 365", result.detail)
+
+    def test_warn_when_auto_memory_enabled(self) -> None:
+        """Returns WARN when autoMemoryEnabled is not false."""
+        pdir = self._make_profile("memOn")
+        settings = self._good_settings()
+        settings["autoMemoryEnabled"] = True
+        self._write_settings(pdir, settings)
+
+        result = check_settings_defaults()
+        self.assertFalse(result.ok)
+        self.assertIn("autoMemoryEnabled != false", result.detail)
+
+    def test_ok_no_profiles(self) -> None:
+        """Returns OK when no profiles exist."""
+        result = check_settings_defaults()
+        self.assertTrue(result.ok)
+        self.assertIn("no profiles found", result.detail)
+
+
+# ---------------------------------------------------------------------------
+# check_tokens
+# ---------------------------------------------------------------------------
+
+
+class CheckTokensTests(_HomeDirTestCase):
+    """Tests for check_tokens()."""
+
+    def _write_tokens(self, tokens: dict) -> None:
+        """Write tokens.json in the temp home's .claudelauncher/ dir."""
+        tokens_dir = self.home / ".claudelauncher"
+        tokens_dir.mkdir(parents=True, exist_ok=True)
+        (tokens_dir / "tokens.json").write_text(json.dumps(tokens))
+
+    def test_ok_when_all_profiles_have_tokens(self) -> None:
+        """Returns OK when every profile has a matching token entry."""
+        self._make_profile("alpha")
+        self._make_profile("beta")
+        self._write_tokens({"alpha": "tok-aaa", "beta": "tok-bbb"})
+
+        result = check_tokens()
+        self.assertTrue(result.ok)
+        self.assertIn("2 profiles OK", result.detail)
+
+    def test_warn_when_profile_missing_from_tokens(self) -> None:
+        """Returns WARN when a profile has no entry in tokens.json."""
+        self._make_profile("alpha")
+        self._make_profile("beta")
+        self._write_tokens({"alpha": "tok-aaa"})
+
+        result = check_tokens()
+        self.assertFalse(result.ok)
+        self.assertIn("beta", result.detail)
+
+    def test_ok_when_tokens_file_missing(self) -> None:
+        """Returns OK when tokens.json does not exist (nothing to check against)."""
+        self._make_profile("lonely")
+
+        result = check_tokens()
+        self.assertTrue(result.ok)
+        self.assertIn("tokens.json not found", result.detail)
+
+    def test_ok_no_profiles_no_tokens(self) -> None:
+        """Returns OK when neither profiles nor tokens.json exist."""
+        result = check_tokens()
+        self.assertTrue(result.ok)
+
+    def test_warn_when_token_value_empty(self) -> None:
+        """Returns WARN when a profile's token value is empty string."""
+        self._make_profile("empty")
+        self._write_tokens({"empty": ""})
+
+        result = check_tokens()
+        self.assertFalse(result.ok)
+        self.assertIn("empty", result.detail)
+
+    def test_warn_when_token_value_not_string(self) -> None:
+        """Returns WARN when a profile's token value is not a string."""
+        self._make_profile("numeric")
+        self._write_tokens({"numeric": 12345})
+
+        result = check_tokens()
+        self.assertFalse(result.ok)
+        self.assertIn("numeric", result.detail)
+
+
+if __name__ == "__main__":
+    unittest.main()
