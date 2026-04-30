@@ -109,7 +109,10 @@ class App:
                 focused._freeform_editing = False
                 focused.cycle(1)
             case "ENTER":
-                # Enter creation mode if on the "+" sentinel
+                # "+" on profile segment launches the wizard
+                if focused.is_on_plus and focused.key == "profile":
+                    return self._launch_profile_wizard(focused)
+                # Enter creation mode if on the "+" sentinel (other segments)
                 if focused.is_on_plus:
                     focused.creating = True
                     focused.create_buffer = ""
@@ -137,7 +140,9 @@ class App:
                         return None
                 return "launch"
             case "TAB":
-                # Enter creation mode if on the "+" sentinel
+                if focused.is_on_plus and focused.key == "profile":
+                    return self._launch_profile_wizard(focused)
+                # Enter creation mode if on the "+" sentinel (other segments)
                 if focused.is_on_plus:
                     focused.creating = True
                     focused.create_buffer = ""
@@ -253,6 +258,22 @@ class App:
         except KeyboardInterrupt:
             pass
         # Re-enter alt screen
+        self.terminal.enter_raw()
+        return None
+
+    def _launch_profile_wizard(self, seg: Segment) -> str | None:
+        """Exit TUI, run the profile wizard, create profile, return to TUI."""
+        from .wizard import run_profile_wizard, create_profile
+        from .health import _discover_profiles
+        self.terminal.exit_raw()
+        existing = [name for name, _ in _discover_profiles()]
+        result = run_profile_wizard(existing)
+        if not result.cancelled:
+            create_profile(result, self.cfg)
+            # Add the new profile to the segment's live options
+            plus_idx = seg.options.index("+")
+            seg.options.insert(plus_idx, result.name)
+            seg.select_value(result.name)
         self.terminal.enter_raw()
         return None
 
