@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from pathlib import Path
 
-from .constants import VERSIONS_DIR, CLAUDE_SYMLINK
+from .constants import VERSIONS_DIR, CLAUDE_SYMLINK, TOKENS_FILE
 
 
 def fetch_gh_token(account: str) -> str | None:
@@ -98,6 +99,14 @@ def resolve_launch_config(
     env["CLAUDE_CONFIG_DIR"] = config_dir
     if gh_token:
         env["GH_TOKEN"] = gh_token
+    # Long-lived OAuth token (from tokens.json, keyed by profile name)
+    if profile and TOKENS_FILE.is_file():
+        try:
+            tokens = json.loads(TOKENS_FILE.read_text())
+            if profile in tokens:
+                env["CLAUDE_CODE_OAUTH_TOKEN"] = tokens[profile]
+        except (json.JSONDecodeError, OSError):
+            pass
 
     # 8. Argv
     argv = [binary_path] + default_flags + mcp_flags + perm_flags + model_flags

@@ -12,6 +12,7 @@ OPTIONS_FILE = LAUNCHER_DIR / "options.json"
 STATE_FILE = LAUNCHER_DIR / "state.json"
 THEMES_DIR = LAUNCHER_DIR / "themes"
 HOOKS_DIR = LAUNCHER_DIR / "hooks"
+TOKENS_FILE = LAUNCHER_DIR / "tokens.json"
 
 VERSIONS_DIR = Path.home() / ".local/share/claude/versions"
 CLAUDE_SYMLINK = Path.home() / ".local/bin/claude"
