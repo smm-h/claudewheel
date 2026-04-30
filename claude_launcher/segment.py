@@ -233,12 +233,14 @@ def discover_options(options_def: dict, state: dict) -> dict[str, list[str]]:
                     profiles: list[str] = []
                     # The default Claude config dir
                     default_dir = base / ".claude"
-                    if default_dir.is_dir():
+                    if default_dir.is_dir() and (default_dir / ".credentials.json").exists():
                         profiles.append("default")
                     # Scan for ~/.claude-* profile directories
                     if base.is_dir():
                         for entry in sorted(base.iterdir()):
                             if entry.is_dir() and entry.name.startswith(".claude-"):
+                                if not (entry / ".credentials.json").exists():
+                                    continue
                                 profile_name = entry.name[len(".claude-"):]
                                 if profile_name:
                                     profiles.append(profile_name)
