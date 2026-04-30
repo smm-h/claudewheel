@@ -2,10 +2,10 @@
 
 ## 0.1.3
 - Fix freeform backspace bug: can now delete to empty string without resetting
-- Scaffold share-it-on scripts and hooks (check-prs.sh, pre-release.sh, record-gif.sh, pre-push hook)
+- Scaffold rlsbl scripts and hooks (check-prs.sh, pre-release.sh, record-gif.sh, pre-push hook)
 - Add Claude Code SessionStart hook for PR awareness
 - Merge security-sensitive patterns into .gitignore
-- Update references to share-it-on
+- Update references to rlsbl
 
 ## 0.1.2
 - Exclude `__pycache__` bytecode from npm tarball (package size: 75kB -> 26kB)
@@ -19,7 +19,7 @@
 ## 0.1.0
 - Initial npm release as `claudewheel`
 - Node.js bin wrapper with Python 3.14+ version check
-- CI and publish workflows scaffolded via share-it-on
+- CI and publish workflows scaffolded via rlsbl
 
 ## Architecture
 

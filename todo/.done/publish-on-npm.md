@@ -2,21 +2,21 @@
 
 ## Context
 
-ClaudeLauncher is a pure Python 3.14+ TUI launcher for Claude Code. It has no npm presence yet. Since the target audience (Claude Code users) already has Node.js installed, npm is the natural distribution channel. The `share-it-on` tool can scaffold the release infrastructure.
+ClaudeLauncher is a pure Python 3.14+ TUI launcher for Claude Code. It has no npm presence yet. Since the target audience (Claude Code users) already has Node.js installed, npm is the natural distribution channel. The `rlsbl` tool can scaffold the release infrastructure.
 
 ## Problem
 
-ClaudeLauncher is only installable by cloning the repo and symlinking the `c` script manually. It should be `npm i -g claude-launcher` (or similar name -- check availability with `scripts/check-name` in the share-it-on project).
+ClaudeLauncher is only installable by cloning the repo and symlinking the `c` script manually. It should be `npm i -g claude-launcher` (or similar name -- check availability with `scripts/check-name` in the rlsbl project).
 
 ## Steps
 
-1. Choose an npm package name (check with share-it-on's `scripts/check-name`)
+1. Choose an npm package name (check with rlsbl's `scripts/check-name`)
 2. Create `package.json` with bin entry pointing to a wrapper script
 3. Create a bin wrapper (Node.js or shell) that:
    - Checks Python 3.14+ is available
    - Sets PYTHONPATH to the installed package location
    - Execs `python3 -m claude_launcher "$@"`
-4. Run `share-it-on init` to scaffold CI + publish workflows, CHANGELOG, LICENSE, etc.
+4. Run `rlsbl init` to scaffold CI + publish workflows, CHANGELOG, LICENSE, etc.
 5. Create GitHub repo: `gh repo create smm-h/claude-launcher --public --source . --push`
 6. First publish locally: `npm login && npm publish --access public` (with granular token)
 7. Configure Trusted Publishing on npmjs.com
