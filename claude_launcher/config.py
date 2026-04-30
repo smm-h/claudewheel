@@ -88,5 +88,13 @@ class ConfigManager:
             # Also update in-memory copy
             self.options_def = options
 
+    def set_option_metadata(self, segment_key: str, value: str, meta: dict) -> None:
+        """Set metadata for a specific option value in options.json."""
+        options = self._load_json(OPTIONS_FILE, self.options_def)
+        seg = options.setdefault(segment_key, {"values": []})
+        seg.setdefault("metadata", {})[value] = meta
+        self._save_json(OPTIONS_FILE, options)
+        self.options_def = options
+
     def save_state(self):
         self._save_json(STATE_FILE, self.state)
