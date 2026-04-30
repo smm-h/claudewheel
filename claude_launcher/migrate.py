@@ -196,12 +196,7 @@ def migrate_sessions(
 
                 if sub.is_dir():
                     _stamp_xattr(sub, src_profile, index_path, ts, result, dry_run)
-                    # Skip move if the .jsonl sibling existed (it was handled above
-                    # and would have moved/attempted the sub already in non-shared
-                    # mode). For orphan sub-dirs (no .jsonl), move independently.
-                    if not skip_move and not jsonl.exists():
-                        _move_artifact(sub, dst / "projects" / cwd_name / uuid, result, dry_run)
-                    elif not skip_move:
+                    if not skip_move:
                         _move_artifact(sub, dst / "projects" / cwd_name / uuid, result, dry_run)
 
         # --- session-env, file-history, tasks ---
