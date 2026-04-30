@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import tempfile
@@ -150,8 +152,11 @@ class StampXattrTests(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         self.index = self.root / "index.jsonl"
+        self._stdout_trap = contextlib.redirect_stdout(io.StringIO())
+        self._stdout_trap.__enter__()
 
     def tearDown(self) -> None:
+        self._stdout_trap.__exit__(None, None, None)
         self._tmp.cleanup()
 
     def test_stamps_file_without_xattr(self) -> None:
@@ -213,8 +218,11 @@ class MoveArtifactTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
+        self._stdout_trap = contextlib.redirect_stdout(io.StringIO())
+        self._stdout_trap.__enter__()
 
     def tearDown(self) -> None:
+        self._stdout_trap.__exit__(None, None, None)
         self._tmp.cleanup()
 
     def test_moves_file_when_dst_does_not_exist(self) -> None:
@@ -331,6 +339,9 @@ class MigrateSessionsTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory()
         self.home = Path(self._tmp.name)
+        # Suppress migrate_sessions() print output
+        self._stdout_trap = contextlib.redirect_stdout(io.StringIO())
+        self._stdout_trap.__enter__()
         # Create profile dirs
         self.src_dir = self.home / ".claude-alpha"
         self.dst_dir = self.home / ".claude-beta"
@@ -340,6 +351,7 @@ class MigrateSessionsTests(unittest.TestCase):
         (self.home / ".claude-common").mkdir()
 
     def tearDown(self) -> None:
+        self._stdout_trap.__exit__(None, None, None)
         self._tmp.cleanup()
 
     def _populate_src(self) -> None:

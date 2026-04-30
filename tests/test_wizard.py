@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import tempfile
@@ -69,6 +71,11 @@ class CreateProfileTestBase(unittest.TestCase):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.fake_home = Path(self._tmp.name)
+
+        # Suppress create_profile() print output
+        self._stdout_trap = contextlib.redirect_stdout(io.StringIO())
+        self._stdout_trap.__enter__()
+        self.addCleanup(self._stdout_trap.__exit__, None, None, None)
 
         # Patch Path.home() and HOME env var so expanduser("~") resolves here
         self._home_patch = mock.patch.object(Path, "home", return_value=self.fake_home)
