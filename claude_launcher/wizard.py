@@ -322,3 +322,6 @@ def create_profile(result: WizardResult, cfg: ConfigManager) -> None:
     print(f"  Recap disabled: {result.disable_recap}")
     print(f"  Cleanup 10y:    {result.cleanup_10y}")
     print(f"  Auto-memory:    {not result.disable_memory}")
+    print()
+    print(f"  To set up long-lived auth, run:")
+    print(f"    CLAUDE_CONFIG_DIR={result.config_dir} claude setup-token")

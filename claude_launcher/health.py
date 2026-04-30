@@ -202,6 +202,20 @@ def check_settings_defaults() -> HealthResult:
     return HealthResult(True, "settings-defaults", f"all {len(profiles)} profiles OK")
 
 
+def check_token_expiry() -> HealthResult:
+    """Warn if tokens.json is approaching 1-year expiry (setup-token TTL)."""
+    tokens_file = Path.home() / ".claudelauncher" / "tokens.json"
+    if not tokens_file.exists():
+        return HealthResult(True, "token-expiry", "no tokens.json")
+    import time
+    age_days = (time.time() - tokens_file.stat().st_mtime) / 86400
+    remaining = 365 - age_days
+    if remaining < 30:
+        return HealthResult(False, "token-expiry",
+                            f"tokens expire in ~{max(0, int(remaining))} days — run claude setup-token")
+    return HealthResult(True, "token-expiry", f"~{int(remaining)} days remaining")
+
+
 def check_tokens() -> HealthResult:
     """Verify each profile has a matching entry in ~/.claudelauncher/tokens.json."""
     tokens_file = Path.home() / ".claudelauncher" / "tokens.json"
@@ -238,6 +252,7 @@ def run_health_check() -> list[HealthResult]:
         check_hooks_wired(),
         check_settings_defaults(),
         check_tokens(),
+        check_token_expiry(),
     ]
 
 
