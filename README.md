@@ -64,6 +64,9 @@ c --reset-options          # delete options.json so defaults regenerate next run
 c --show                   # print last_config, theme, default flags, recent dirs
 c --config                 # open ~/.claudelauncher/ in $EDITOR
 c --health                 # run pre-launch health checks and exit
+c --new-profile            # interactive wizard to create a new Claude Code profile
+c --migrate SRC DST        # migrate session artifacts between profiles
+c --migrate --dry-run S D  # preview migration without changes
 ```
 
 ### Segment overrides
