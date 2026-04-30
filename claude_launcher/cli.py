@@ -155,6 +155,8 @@ def main() -> None:
                         help="delete an installed Claude Code version, then exit")
     parser.add_argument("--reset-options", action="store_true",
                         help="delete options.json so it regenerates from defaults on next run")
+    parser.add_argument("--new-profile", action="store_true",
+                        help="run the profile creation wizard")
     parser.add_argument("--show", action="store_true",
                         help="print current selections and exit")
     parser.add_argument("--migrate", nargs="+", metavar="ARG",
@@ -250,6 +252,18 @@ def main() -> None:
     # --reset-options: delete options.json so it regenerates from defaults
     if args.reset_options:
         sys.exit(_do_reset_options())
+
+    # --new-profile: run the profile creation wizard
+    if args.new_profile:
+        from .wizard import run_profile_wizard, create_profile
+        from .health import _discover_profiles
+        existing = [name for name, _ in _discover_profiles()]
+        result = run_profile_wizard(existing)
+        if result.cancelled:
+            print("Cancelled.")
+            return
+        create_profile(result, cfg)
+        return
 
     # --show: print last_config + segment summary, then exit
     if args.show:

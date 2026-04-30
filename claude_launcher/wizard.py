@@ -1,0 +1,307 @@
+"""Form-style TUI wizard for creating new Claude Code profiles."""
+
+from __future__ import annotations
+
+import json
+import signal
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from .constants import (
+    CLEAR_SCREEN, CLEAR_LINE, RESET, BOLD, DIM,
+    ALT_SCREEN_ON, ALT_SCREEN_OFF, HIDE_CURSOR, SHOW_CURSOR,
+    move_to, fg_rgb,
+)
+from .config import ConfigManager
+from .terminal import Terminal
+
+# Color constants
+_ACCENT = (107, 138, 255)  # #6B8AFF
+_DIM_CLR = (136, 136, 136)  # #888888
+
+
+@dataclass
+class WizardField:
+    label: str
+    field_type: str  # "text", "radio", "checkbox", "readonly", "button"
+    value: str | bool | None = None
+    options: list[str] | None = None  # for radio
+    enabled: bool = True
+
+
+@dataclass
+class WizardResult:
+    name: str
+    config_dir: str
+    clone_from: str | None  # profile name or None for defaults
+    wire_hooks: bool
+    symlink_shared: bool
+    disable_recap: bool
+    cleanup_10y: bool
+    disable_memory: bool
+    cancelled: bool = False
+
+
+def _build_fields(existing_profiles: list[str]) -> list[WizardField]:
+    """Build the ordered list of wizard fields."""
+    radio_opts = ["Defaults template"] + existing_profiles
+    return [
+        WizardField("Name", "text", value=""),
+        WizardField("Config dir", "readonly", value="~/.claude-"),
+        WizardField("Settings source", "radio", value=radio_opts[0], options=radio_opts),
+        WizardField("Wire common hooks", "checkbox", value=True),
+        WizardField("Symlink to shared store", "checkbox", value=True),
+        WizardField("Disable recap", "checkbox", value=True),
+        WizardField("10-year cleanup period", "checkbox", value=True),
+        WizardField("Disable auto-memory", "checkbox", value=True),
+        WizardField("Create", "button"),
+        WizardField("Cancel", "button"),
+    ]
+
+
+def _render(term: Terminal, fields: list[WizardField], focus: int) -> None:
+    """Render the full wizard form centered in the terminal."""
+    rows, cols = term.get_size()
+    # Total lines: 1 title + 1 blank + len(fields) + 1 blank line before buttons
+    # Buttons are last 2 fields, rendered on the same line
+    form_lines = len(fields) - 1  # -1 because two buttons share a line
+    total_height = 1 + 1 + form_lines
+    start_row = max(1, (rows - total_height) // 2)
+    buf: list[str] = [CLEAR_SCREEN]
+
+    # Title
+    title = "New Profile"
+    title_col = max(1, (cols - len(title)) // 2)
+    buf.append(move_to(start_row, title_col) + BOLD + fg_rgb(*_ACCENT) + title + RESET)
+
+    row = start_row + 2  # skip blank line after title
+    for i, f in enumerate(fields):
+        # Buttons (Create + Cancel) share one line
+        if f.field_type == "button" and f.label == "Cancel":
+            continue  # rendered alongside Create
+
+        focused = (i == focus)
+        color = fg_rgb(*_ACCENT) if focused else fg_rgb(*_DIM_CLR)
+        style = BOLD + color if focused else color
+
+        if f.field_type == "button" and f.label == "Create":
+            # Render both buttons on one line
+            cancel_idx = i + 1
+            cancel_focused = (focus == cancel_idx)
+            create_style = BOLD + fg_rgb(*_ACCENT) if focused else fg_rgb(*_DIM_CLR)
+            cancel_style = (BOLD + fg_rgb(*_ACCENT) if cancel_focused
+                            else fg_rgb(*_DIM_CLR))
+            line = (f"{create_style}[ Create ]{RESET}"
+                    f"    "
+                    f"{cancel_style}[ Cancel ]{RESET}")
+            col = max(1, (cols - 23) // 2)  # 23 = len("[ Create ]    [ Cancel ]")
+            buf.append(move_to(row, col) + CLEAR_LINE + line)
+            row += 1
+            continue
+
+        # Label + value
+        if f.field_type == "text":
+            cursor = "_" if focused else ""
+            val = f"{f.value}{cursor}"
+            line = f"{style}{f.label}: {RESET}{val}"
+        elif f.field_type == "readonly":
+            line = f"{style}{f.label}: {RESET}{DIM}{f.value}{RESET}"
+        elif f.field_type == "radio":
+            parts: list[str] = []
+            for opt in (f.options or []):
+                marker = "(*)" if opt == f.value else "( )"
+                parts.append(f"{marker} {opt}")
+            opts_str = "  ".join(parts)
+            line = f"{style}{f.label}: {RESET}{opts_str}"
+        elif f.field_type == "checkbox":
+            marker = "[x]" if f.value else "[ ]"
+            line = f"{style}{marker} {f.label}{RESET}"
+        else:
+            line = f"{style}{f.label}{RESET}"
+
+        col = max(1, (cols - 60) // 2)  # left-align fields within a 60-col area
+        buf.append(move_to(row, col) + CLEAR_LINE + line)
+        row += 1
+
+    term.write("".join(buf))
+
+
+def run_profile_wizard(existing_profiles: list[str]) -> WizardResult:
+    """Run the form TUI and return the user's choices."""
+    term = Terminal()
+    fields = _build_fields(existing_profiles)
+    focus = 0  # start on Name field
+
+    term.enter_raw()
+
+    def on_resize(signum, frame):
+        term.rows, term.cols = term.get_size()
+        _render(term, fields, focus)
+
+    prev_handler = signal.signal(signal.SIGWINCH, on_resize)
+
+    try:
+        _render(term, fields, focus)
+        while True:
+            try:
+                key = term.read_key()
+            except KeyboardInterrupt:
+                return WizardResult("", "", None, False, False, False, False, False,
+                                    cancelled=True)
+
+            f = fields[focus]
+
+            if key == "ESC" or key == "CTRL_C":
+                return WizardResult("", "", None, False, False, False, False, False,
+                                    cancelled=True)
+
+            if key in ("UP", "DOWN", "TAB"):
+                step = -1 if key == "UP" else 1
+                focus = (focus + step) % len(fields)
+            elif key == "ENTER":
+                if f.field_type == "button":
+                    if f.label == "Cancel":
+                        return WizardResult("", "", None, False, False, False, False,
+                                            False, cancelled=True)
+                    if f.label == "Create":
+                        name = fields[0].value.strip()
+                        if not name:
+                            # Don't create with empty name; flash handled by re-render
+                            _render(term, fields, focus)
+                            continue
+                        source = fields[2].value
+                        clone = None if source == "Defaults template" else source
+                        return WizardResult(
+                            name=name,
+                            config_dir=f"~/.claude-{name}",
+                            clone_from=clone,
+                            wire_hooks=bool(fields[3].value),
+                            symlink_shared=bool(fields[4].value),
+                            disable_recap=bool(fields[5].value),
+                            cleanup_10y=bool(fields[6].value),
+                            disable_memory=bool(fields[7].value),
+                        )
+            elif key == " ":
+                if f.field_type == "checkbox":
+                    f.value = not f.value
+                elif f.field_type == "radio":
+                    # Space cycles forward through radio options
+                    opts = f.options or []
+                    if opts:
+                        idx = opts.index(f.value) if f.value in opts else -1
+                        f.value = opts[(idx + 1) % len(opts)]
+            elif key in ("LEFT", "RIGHT"):
+                if f.field_type == "radio":
+                    opts = f.options or []
+                    if opts:
+                        idx = opts.index(f.value) if f.value in opts else 0
+                        step = 1 if key == "RIGHT" else -1
+                        f.value = opts[(idx + step) % len(opts)]
+            elif key == "BACKSPACE":
+                if f.field_type == "text" and isinstance(f.value, str):
+                    f.value = f.value[:-1]
+                    # Update computed config dir
+                    fields[1].value = f"~/.claude-{f.value}"
+            else:
+                # Printable character on text field
+                if f.field_type == "text" and len(key) == 1 and key.isprintable():
+                    f.value = (f.value or "") + key
+                    fields[1].value = f"~/.claude-{f.value}"
+
+            _render(term, fields, focus)
+    finally:
+        signal.signal(signal.SIGWINCH, prev_handler or signal.SIG_DFL)
+        term.exit_raw()
+
+
+_SHARED_DIRS = ["projects", "session-env", "file-history", "tasks", "todos", "paste-cache"]
+
+_HOOKS_TEMPLATE = {
+    "UserPromptSubmit": [
+        {
+            "matcher": "",
+            "hooks": [
+                {"type": "command", "command": "~/.claude-common/scripts/hook-timestamp"},
+                {"type": "command", "command": "~/.claude-common/scripts/hook-stamp-origin"},
+            ],
+        }
+    ]
+}
+
+
+def create_profile(result: WizardResult, cfg: ConfigManager) -> None:
+    """Execute the profile creation based on wizard results."""
+    config_dir = Path(result.config_dir).expanduser()
+    config_dir.mkdir(parents=True, exist_ok=True)
+
+    # Build settings.json content
+    settings: dict = {}
+    if result.clone_from:
+        # Copy from existing profile
+        source_dir = Path.home() / f".claude-{result.clone_from}"
+        source_settings = source_dir / "settings.json"
+        if source_settings.exists():
+            try:
+                settings = json.loads(source_settings.read_text())
+            except (json.JSONDecodeError, OSError):
+                pass
+    else:
+        # Use defaults template if available, otherwise minimal
+        defaults_file = Path.home() / ".claudelauncher" / "profile-defaults.json"
+        if defaults_file.exists():
+            try:
+                settings = json.loads(defaults_file.read_text())
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    # Apply checkbox overrides on top
+    if result.disable_recap:
+        settings["awaySummaryEnabled"] = False
+    if result.cleanup_10y:
+        settings["cleanupPeriodDays"] = 3650
+    if result.disable_memory:
+        settings["autoMemoryEnabled"] = False
+
+    # Wire hooks — merge into existing hooks if cloned
+    if result.wire_hooks:
+        existing_hooks = settings.get("hooks", {}).get("UserPromptSubmit", [])
+        if existing_hooks:
+            # Merge: ensure both hook commands are present
+            hook_list = existing_hooks[0].get("hooks", []) if existing_hooks else []
+            wanted = _HOOKS_TEMPLATE["UserPromptSubmit"][0]["hooks"]
+            existing_cmds = {h.get("command", "") for h in hook_list}
+            for h in wanted:
+                if h["command"] not in existing_cmds:
+                    hook_list.append(h)
+            settings.setdefault("hooks", {})["UserPromptSubmit"] = existing_hooks
+        else:
+            settings["hooks"] = _HOOKS_TEMPLATE
+
+    # Write settings.json
+    settings_path = config_dir / "settings.json"
+    settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+
+    # Symlink shared dirs
+    if result.symlink_shared:
+        shared_base = Path.home() / ".claude-shared"
+        for dirname in _SHARED_DIRS:
+            link = config_dir / dirname
+            target = shared_base / dirname
+            if link.exists() or link.is_symlink():
+                continue  # don't overwrite existing
+            target.mkdir(parents=True, exist_ok=True)
+            link.symlink_to(target)
+
+    # Register in options.json: add value and metadata
+    cfg.add_option("profile", result.name)
+    cfg.set_option_metadata("profile", result.name, {"config_dir": result.config_dir})
+
+    # Summary
+    print(f"Created profile '{result.name}':")
+    print(f"  Config dir:     {config_dir}")
+    print(f"  Settings from:  {result.clone_from or 'defaults'}")
+    print(f"  Hooks wired:    {result.wire_hooks}")
+    print(f"  Shared symlinks:{result.symlink_shared}")
+    print(f"  Recap disabled: {result.disable_recap}")
+    print(f"  Cleanup 10y:    {result.cleanup_10y}")
+    print(f"  Auto-memory:    {not result.disable_memory}")
