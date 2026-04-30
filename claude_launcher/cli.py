@@ -157,6 +157,10 @@ def main() -> None:
                         help="delete options.json so it regenerates from defaults on next run")
     parser.add_argument("--show", action="store_true",
                         help="print current selections and exit")
+    parser.add_argument("--migrate", nargs="+", metavar="ARG",
+                        help="migrate sessions: SRC DST [UUID_SUBSTR]")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="preview changes without writing (for --migrate)")
 
     # Mutually exclusive session passthrough flags (handed to claude as -c / -r)
     # --resume optionally accepts a session ID; without one, Claude opens its picker.
@@ -250,6 +254,23 @@ def main() -> None:
     # --show: print last_config + segment summary, then exit
     if args.show:
         sys.exit(_do_show(cfg))
+
+    # --migrate SRC DST [UUID_SUBSTR] [--dry-run]
+    if args.migrate:
+        from .migrate import migrate_sessions
+        migrate_args = list(args.migrate)
+        dry_run = args.dry_run
+        if len(migrate_args) < 2:
+            print("Usage: c --migrate [--dry-run] SRC_PROFILE DST_PROFILE [UUID_SUBSTR]", file=sys.stderr)
+            sys.exit(1)
+        src, dst = migrate_args[0], migrate_args[1]
+        uuid_filter = migrate_args[2] if len(migrate_args) > 2 else None
+        try:
+            migrate_sessions(src, dst, uuid_filter=uuid_filter, dry_run=dry_run)
+        except (FileNotFoundError, OSError) as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        return
 
     # Collect segment value overrides from CLI args
     segment_overrides: dict[str, str] = {}
