@@ -59,7 +59,8 @@ def _build_fields(existing_profiles: list[str]) -> list[WizardField]:
     ]
 
 
-def _render(term: Terminal, fields: list[WizardField], focus: int) -> None:
+def _render(term: Terminal, fields: list[WizardField], focus: int,
+            flash: str = "") -> None:
     """Render the full wizard form centered in the terminal."""
     rows, cols = term.get_size()
     # Total lines: 1 title + 1 blank + len(fields) + 1 blank line before buttons
@@ -123,6 +124,12 @@ def _render(term: Terminal, fields: list[WizardField], focus: int) -> None:
         buf.append(move_to(row, col) + CLEAR_LINE + line)
         row += 1
 
+    # Flash message below form
+    if flash:
+        flash_col = max(1, (cols - len(flash)) // 2)
+        buf.append(move_to(row + 1, flash_col) + CLEAR_LINE
+                   + BOLD + fg_rgb(255, 100, 100) + flash + RESET)
+
     term.write("".join(buf))
 
 
@@ -166,8 +173,14 @@ def run_profile_wizard(existing_profiles: list[str]) -> WizardResult:
                     if f.label == "Create":
                         name = fields[0].value.strip()
                         if not name:
-                            # Don't create with empty name; flash handled by re-render
-                            _render(term, fields, focus)
+                            _render(term, fields, focus, flash="Name cannot be empty")
+                            continue
+                        config_dir = Path(f"~/.claude-{name}").expanduser()
+                        if config_dir.exists():
+                            _render(term, fields, focus, flash=f"~/.claude-{name} already exists")
+                            continue
+                        if name in existing_profiles:
+                            _render(term, fields, focus, flash=f"Profile '{name}' already registered")
                             continue
                         source = fields[2].value
                         clone = None if source == "Defaults template" else source
@@ -266,13 +279,17 @@ def create_profile(result: WizardResult, cfg: ConfigManager) -> None:
     if result.wire_hooks:
         existing_hooks = settings.get("hooks", {}).get("UserPromptSubmit", [])
         if existing_hooks:
-            # Merge: ensure both hook commands are present
-            hook_list = existing_hooks[0].get("hooks", []) if existing_hooks else []
+            # Collect all commands already present across all entries
+            all_cmds: set[str] = set()
+            for entry in existing_hooks:
+                for h in entry.get("hooks", []):
+                    all_cmds.add(h.get("command", ""))
+            # Append missing wanted hooks to the first entry's hook list
             wanted = _HOOKS_TEMPLATE["UserPromptSubmit"][0]["hooks"]
-            existing_cmds = {h.get("command", "") for h in hook_list}
+            first_hooks = existing_hooks[0].setdefault("hooks", [])
             for h in wanted:
-                if h["command"] not in existing_cmds:
-                    hook_list.append(h)
+                if h["command"] not in all_cmds:
+                    first_hooks.append(h)
             settings.setdefault("hooks", {})["UserPromptSubmit"] = existing_hooks
         else:
             settings["hooks"] = _HOOKS_TEMPLATE
