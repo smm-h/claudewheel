@@ -13,6 +13,7 @@ from claude_launcher.health import (
     HealthResult,
     _discover_profiles,
     check_hooks_wired,
+    check_orphan_profiles,
     check_settings_defaults,
     check_shared_symlinks,
     check_tokens,
@@ -437,6 +438,88 @@ class CheckTokensTests(_HomeDirTestCase):
         result = check_tokens()
         self.assertFalse(result.ok)
         self.assertIn("numeric", result.detail)
+
+
+# ---------------------------------------------------------------------------
+# check_orphan_profiles
+# ---------------------------------------------------------------------------
+
+
+class CheckOrphanProfilesTests(_HomeDirTestCase):
+    """Tests for check_orphan_profiles()."""
+
+    def _write_options(self, profile_values: list[str]) -> None:
+        """Write a minimal options.json with the given profile values."""
+        options_dir = self.home / ".claudelauncher"
+        options_dir.mkdir(parents=True, exist_ok=True)
+        options = {"profile": {"values": profile_values}}
+        (options_dir / "options.json").write_text(json.dumps(options))
+
+    def test_ok_when_no_orphans(self) -> None:
+        """Returns OK when all .claude-* dirs are registered profiles."""
+        self._make_profile("alpha")
+        self._write_options(["alpha"])
+        with patch("claude_launcher.health.OPTIONS_FILE",
+                    self.home / ".claudelauncher" / "options.json"):
+            result = check_orphan_profiles()
+        self.assertTrue(result.ok)
+        self.assertIn("no orphan", result.detail)
+
+    def test_warns_on_orphan_dir(self) -> None:
+        """Returns WARN when a .claude-* dir is not registered anywhere."""
+        self._make_profile("known")
+        # Create an orphan dir (no .credentials.json, not in options)
+        orphan = self.home / ".claude-stale"
+        orphan.mkdir()
+        self._write_options(["known"])
+        with patch("claude_launcher.health.OPTIONS_FILE",
+                    self.home / ".claudelauncher" / "options.json"):
+            result = check_orphan_profiles()
+        self.assertFalse(result.ok)
+        self.assertIn("stale", result.detail)
+
+    def test_skips_shared_and_common(self) -> None:
+        """Known non-profile dirs .claude-shared and .claude-common are ignored."""
+        (self.home / ".claude-shared").mkdir()
+        (self.home / ".claude-common").mkdir()
+        self._write_options([])
+        with patch("claude_launcher.health.OPTIONS_FILE",
+                    self.home / ".claudelauncher" / "options.json"):
+            result = check_orphan_profiles()
+        self.assertTrue(result.ok)
+
+    def test_dir_in_options_not_orphan(self) -> None:
+        """A .claude-* dir listed in options.json (without .credentials.json) is not orphan."""
+        # Dir exists but has no .credentials.json
+        (self.home / ".claude-pending").mkdir()
+        self._write_options(["pending"])
+        with patch("claude_launcher.health.OPTIONS_FILE",
+                    self.home / ".claudelauncher" / "options.json"):
+            result = check_orphan_profiles()
+        self.assertTrue(result.ok)
+
+    def test_flags_broken_symlinks(self) -> None:
+        """Orphan dirs with broken symlinks are flagged in the detail."""
+        orphan = self.home / ".claude-broken"
+        orphan.mkdir()
+        # Create a broken symlink inside
+        (orphan / "projects").symlink_to(self.home / "nonexistent")
+        self._write_options([])
+        with patch("claude_launcher.health.OPTIONS_FILE",
+                    self.home / ".claudelauncher" / "options.json"):
+            result = check_orphan_profiles()
+        self.assertFalse(result.ok)
+        self.assertIn("broken", result.detail.lower())
+        self.assertIn("projects", result.detail)
+
+    def test_registered_profile_not_orphan(self) -> None:
+        """A dir with .credentials.json (registered profile) is never orphan."""
+        self._make_profile("real")
+        self._write_options([])  # not in options, but has credentials
+        with patch("claude_launcher.health.OPTIONS_FILE",
+                    self.home / ".claudelauncher" / "options.json"):
+            result = check_orphan_profiles()
+        self.assertTrue(result.ok)
 
 
 if __name__ == "__main__":
