@@ -203,17 +203,36 @@ def check_settings_defaults() -> HealthResult:
 
 
 def check_token_expiry() -> HealthResult:
-    """Warn if tokens.json is approaching 1-year expiry (setup-token TTL)."""
+    """Warn if any token is approaching 1-year expiry (setup-token TTL)."""
     tokens_file = Path.home() / ".claudelauncher" / "tokens.json"
     if not tokens_file.exists():
         return HealthResult(True, "token-expiry", "no tokens.json")
-    import time
-    age_days = (time.time() - tokens_file.stat().st_mtime) / 86400
-    remaining = 365 - age_days
-    if remaining < 30:
+    try:
+        tokens = json.loads(tokens_file.read_text())
+    except (json.JSONDecodeError, OSError):
+        return HealthResult(False, "token-expiry", "unreadable tokens.json")
+    from datetime import date, timedelta
+    today = date.today()
+    expiring: list[str] = []
+    min_remaining = 365
+    for name, entry in tokens.items():
+        if isinstance(entry, dict) and entry.get("created"):
+            try:
+                created = date.fromisoformat(entry["created"])
+                remaining = 365 - (today - created).days
+            except (ValueError, TypeError):
+                remaining = 365
+        else:
+            # Legacy format (plain string): fall back to file mtime
+            import time
+            remaining = 365 - (time.time() - tokens_file.stat().st_mtime) / 86400
+        min_remaining = min(min_remaining, remaining)
+        if remaining < 30:
+            expiring.append(f"{name} (~{max(0, int(remaining))}d)")
+    if expiring:
         return HealthResult(False, "token-expiry",
-                            f"tokens expire in ~{max(0, int(remaining))} days — run claude setup-token")
-    return HealthResult(True, "token-expiry", f"~{int(remaining)} days remaining")
+                            f"expiring soon: {', '.join(expiring)} — run claude setup-token")
+    return HealthResult(True, "token-expiry", f"~{int(min_remaining)} days remaining")
 
 
 def check_tokens() -> HealthResult:
@@ -233,8 +252,10 @@ def check_tokens() -> HealthResult:
 
     missing: list[str] = []
     for name, _pdir in profiles:
-        val = tokens.get(name)
-        if not val or not isinstance(val, str):
+        entry = tokens.get(name)
+        has_token = (isinstance(entry, str) and bool(entry)) or \
+                    (isinstance(entry, dict) and bool(entry.get("token")))
+        if not has_token:
             missing.append(name)
 
     if missing:

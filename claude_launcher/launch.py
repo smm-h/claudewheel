@@ -100,11 +100,15 @@ def resolve_launch_config(
     if gh_token:
         env["GH_TOKEN"] = gh_token
     # Long-lived OAuth token (from tokens.json, keyed by profile name)
+    # Supports both {name: "token"} and {name: {token, created}} formats.
     if profile and TOKENS_FILE.is_file():
         try:
             tokens = json.loads(TOKENS_FILE.read_text())
-            if profile in tokens:
-                env["CLAUDE_CODE_OAUTH_TOKEN"] = tokens[profile]
+            entry = tokens.get(profile)
+            if isinstance(entry, str):
+                env["CLAUDE_CODE_OAUTH_TOKEN"] = entry
+            elif isinstance(entry, dict) and entry.get("token"):
+                env["CLAUDE_CODE_OAUTH_TOKEN"] = entry["token"]
         except (json.JSONDecodeError, OSError):
             pass
 
