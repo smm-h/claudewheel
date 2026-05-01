@@ -305,9 +305,14 @@ def create_profile(result: WizardResult, cfg: ConfigManager) -> None:
             link = config_dir / dirname
             target = shared_base / dirname
             if link.exists() or link.is_symlink():
-                continue  # don't overwrite existing
+                continue
             target.mkdir(parents=True, exist_ok=True)
             link.symlink_to(target)
+        # Skills -> common (separate from shared store)
+        skills_link = config_dir / "skills"
+        skills_target = Path.home() / ".claude-common" / "skills"
+        if skills_target.is_dir() and not skills_link.exists() and not skills_link.is_symlink():
+            skills_link.symlink_to(skills_target)
 
     # Register in options.json: add value and metadata
     cfg.add_option("profile", result.name)
