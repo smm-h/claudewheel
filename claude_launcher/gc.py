@@ -1,6 +1,9 @@
 """Garbage collection for ClaudeLauncher shared infrastructure."""
 from __future__ import annotations
-import json, time
+import fcntl
+import json
+import re
+import time
 from pathlib import Path
 from .constants import OPTIONS_FILE
 
@@ -42,29 +45,48 @@ def _clean_sentinels(dry_run: bool) -> int:
     return removed
 
 
+_UUID_RE = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+
 def _compact_origins(dry_run: bool) -> tuple[int, int]:
-    """Remove profile-origins.jsonl lines referencing unknown profiles."""
+    """Remove unknown-profile entries and deduplicate by UUID."""
     if not ORIGINS_FILE.is_file():
         return 0, 0
-    try:
-        lines = ORIGINS_FILE.read_text().splitlines()
-    except OSError:
-        return 0, 0
-    known, kept, removed = _known_profiles(), [], 0
-    for line in lines:
-        if not line.strip():
-            continue
+    lock_path = str(ORIGINS_FILE) + ".lock"
+    with open(lock_path, "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
         try:
-            if json.loads(line).get("profile") not in known:
+            lines = ORIGINS_FILE.read_text().splitlines()
+        except OSError:
+            return 0, 0
+        known = _known_profiles()
+        kept: list[str] = []
+        seen_uuids: set[str] = set()
+        removed = 0
+        # Process in reverse so we keep the LATEST entry per UUID
+        for line in reversed(lines):
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+            except (json.JSONDecodeError, TypeError):
+                kept.append(line)
+                continue
+            if entry.get("profile") not in known:
                 removed += 1
                 continue
-        except (json.JSONDecodeError, TypeError):
-            pass
-        kept.append(line)
-    if removed > 0 and not dry_run:
-        tmp = ORIGINS_FILE.with_suffix(".tmp")
-        tmp.write_text("\n".join(kept) + "\n" if kept else "")
-        tmp.rename(ORIGINS_FILE)
+            m = _UUID_RE.search(entry.get("path", ""))
+            if m:
+                uuid = m.group()
+                if uuid in seen_uuids:
+                    removed += 1
+                    continue
+                seen_uuids.add(uuid)
+            kept.append(line)
+        kept.reverse()
+        if removed > 0 and not dry_run:
+            tmp = ORIGINS_FILE.with_suffix(".tmp")
+            tmp.write_text("\n".join(kept) + "\n" if kept else "")
+            tmp.rename(ORIGINS_FILE)
     return len(kept), removed
 
 

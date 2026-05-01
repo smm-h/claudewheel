@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import re
@@ -109,8 +110,11 @@ def _stamp_xattr(
 
     os.setxattr(spath, XATTR_NAME, profile.encode())
     entry = json.dumps({"path": spath, "profile": profile, "ts": ts, "phase": "migrate"})
-    with open(index_path, "a") as f:
-        f.write(entry + "\n")
+    lock_path = str(index_path) + ".lock"
+    with open(lock_path, "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        with open(index_path, "a") as f:
+            f.write(entry + "\n")
 
 
 def _move_artifact(
