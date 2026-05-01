@@ -218,14 +218,19 @@ def check_token_expiry() -> HealthResult:
     expiring: list[str] = []
     min_remaining = 365
     for name, entry in tokens.items():
-        if isinstance(entry, dict) and entry.get("created"):
-            try:
-                created = date.fromisoformat(entry["created"])
-                remaining = 365 - (today - created).days
-            except (ValueError, TypeError):
-                remaining = 365
+        remaining = 365
+        if isinstance(entry, dict):
+            if entry.get("expires_at"):
+                try:
+                    remaining = (date.fromisoformat(entry["expires_at"]) - today).days
+                except (ValueError, TypeError):
+                    pass
+            elif entry.get("created"):
+                try:
+                    remaining = 365 - (today - date.fromisoformat(entry["created"])).days
+                except (ValueError, TypeError):
+                    pass
         else:
-            # Legacy format (plain string): fall back to file mtime
             import time
             remaining = 365 - (time.time() - tokens_file.stat().st_mtime) / 86400
         min_remaining = min(min_remaining, remaining)
