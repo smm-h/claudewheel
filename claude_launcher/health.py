@@ -8,6 +8,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from .constants import OPTIONS_FILE
+
 
 @dataclass
 class HealthResult:
@@ -263,6 +265,61 @@ def check_tokens() -> HealthResult:
     return HealthResult(True, "tokens", f"all {len(profiles)} profiles OK")
 
 
+def check_orphan_profiles() -> HealthResult:
+    """Detect .claude-* dirs that are neither registered profiles nor in options.json.
+
+    A directory is "orphan" if it:
+      - lives in ~/ and matches .claude-*
+      - is NOT in the known non-profile set (.claude-shared, .claude-common)
+      - has no .credentials.json (so _discover_profiles skips it)
+      - is NOT listed in options.json's profile values
+
+    For each orphan, we also flag if it contains broken symlinks (symlinks
+    whose target does not exist).
+    """
+    home = Path.home()
+    skip = {".claude-shared", ".claude-common"}
+
+    # Registered profiles: dirs that have .credentials.json
+    registered = {name for name, _ in _discover_profiles()}
+
+    # Profiles known to options.json (may not have .credentials.json yet)
+    options_profiles: set[str] = set()
+    try:
+        options = json.loads(OPTIONS_FILE.read_text())
+        options_profiles = set(options.get("profile", {}).get("values", []))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+    orphans: list[str] = []
+    for entry in sorted(home.iterdir()):
+        if not entry.name.startswith(".claude-") or entry.name in skip:
+            continue
+        if not entry.is_dir():
+            continue
+        name = entry.name[len(".claude-"):]
+        if name in registered or name in options_profiles:
+            continue
+
+        # Check for broken symlinks inside this orphan dir
+        broken_links = []
+        try:
+            for child in entry.iterdir():
+                if child.is_symlink() and not child.exists():
+                    broken_links.append(child.name)
+        except OSError:
+            pass
+
+        if broken_links:
+            orphans.append(f"{name} (broken symlinks: {', '.join(broken_links)})")
+        else:
+            orphans.append(name)
+
+    if orphans:
+        return HealthResult(False, "orphan-profiles", f"orphans: {', '.join(orphans)}")
+    return HealthResult(True, "orphan-profiles", "no orphan dirs found")
+
+
 def run_health_check() -> list[HealthResult]:
     """Run all health checks and return results."""
     return [
@@ -274,6 +331,7 @@ def run_health_check() -> list[HealthResult]:
         check_settings_defaults(),
         check_tokens(),
         check_token_expiry(),
+        check_orphan_profiles(),
     ]
 
 
