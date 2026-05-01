@@ -175,6 +175,13 @@ def run_profile_wizard(existing_profiles: list[str]) -> WizardResult:
                         if not name:
                             _render(term, fields, focus, flash="Name cannot be empty")
                             continue
+                        import re
+                        if not re.match(r'^[a-z0-9][a-z0-9-]*$', name):
+                            _render(term, fields, focus, flash="Use lowercase letters, digits, hyphens only")
+                            continue
+                        if name in ("shared", "common", "lost", "default"):
+                            _render(term, fields, focus, flash=f"'{name}' is a reserved name")
+                            continue
                         config_dir = Path(f"~/.claude-{name}").expanduser()
                         if config_dir.exists():
                             _render(term, fields, focus, flash=f"~/.claude-{name} already exists")

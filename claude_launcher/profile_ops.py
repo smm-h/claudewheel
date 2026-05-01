@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import shutil
@@ -99,26 +100,31 @@ def _remove_from_options(name: str) -> bool:
     return found
 
 
-def _strip_xattrs(name: str) -> int:
-    """Remove origin-profile xattr from shared .jsonl files stamped with this profile.
+_SHARED_DIRS_TO_STRIP = ["projects", "session-env", "file-history", "tasks", "todos"]
 
-    Scans ~/.claude-shared/projects/ for .jsonl files whose user.origin-profile
-    xattr matches `name` and removes the xattr entirely.  Returns the count of
-    files modified.
+def _strip_xattrs(name: str) -> int:
+    """Remove origin-profile xattr from shared files stamped with this profile.
+
+    Scans all 5 shared dirs for files/dirs whose user.origin-profile xattr
+    matches `name` and removes the xattr. Returns the count modified.
     """
-    projects_dir = Path.home() / ".claude-shared" / "projects"
-    if not projects_dir.is_dir():
+    shared = Path.home() / ".claude-shared"
+    if not shared.is_dir():
         return 0
 
     stripped = 0
-    for f in projects_dir.rglob("*.jsonl"):
-        try:
-            val = os.getxattr(str(f), XATTR_NAME)
-            if val.decode(errors="replace") == name:
-                os.removexattr(str(f), XATTR_NAME)
-                stripped += 1
-        except OSError:
-            pass
+    for dirname in _SHARED_DIRS_TO_STRIP:
+        dirpath = shared / dirname
+        if not dirpath.is_dir():
+            continue
+        for f in dirpath.rglob("*"):
+            try:
+                val = os.getxattr(str(f), XATTR_NAME)
+                if val.decode(errors="replace") == name:
+                    os.removexattr(str(f), XATTR_NAME)
+                    stripped += 1
+            except OSError:
+                pass
     return stripped
 
 
@@ -130,31 +136,33 @@ def _clean_origins_file(name: str) -> int:
     if not ORIGINS_FILE.is_file():
         return 0
 
-    try:
-        lines = ORIGINS_FILE.read_text().splitlines()
-    except OSError:
-        return 0
-
-    kept: list[str] = []
-    removed = 0
-    for line in lines:
-        line_stripped = line.strip()
-        if not line_stripped:
-            continue
+    lock_path = str(ORIGINS_FILE) + ".lock"
+    with open(lock_path, "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
         try:
-            entry = json.loads(line_stripped)
-            if entry.get("profile") == name:
-                removed += 1
-                continue
-        except (json.JSONDecodeError, TypeError):
-            pass
-        kept.append(line)
+            lines = ORIGINS_FILE.read_text().splitlines()
+        except OSError:
+            return 0
 
-    if removed > 0:
-        # Atomic rewrite
-        tmp = ORIGINS_FILE.with_suffix(".tmp")
-        tmp.write_text("\n".join(kept) + "\n" if kept else "")
-        tmp.rename(ORIGINS_FILE)
+        kept: list[str] = []
+        removed = 0
+        for line in lines:
+            line_stripped = line.strip()
+            if not line_stripped:
+                continue
+            try:
+                entry = json.loads(line_stripped)
+                if entry.get("profile") == name:
+                    removed += 1
+                    continue
+            except (json.JSONDecodeError, TypeError):
+                pass
+            kept.append(line)
+
+        if removed > 0:
+            tmp = ORIGINS_FILE.with_suffix(".tmp")
+            tmp.write_text("\n".join(kept) + "\n" if kept else "")
+            tmp.rename(ORIGINS_FILE)
 
     return removed
 

@@ -312,6 +312,10 @@ class CheckSettingsDefaultsTests(_HomeDirTestCase):
             "awaySummaryEnabled": False,
             "cleanupPeriodDays": 365,
             "autoMemoryEnabled": False,
+            "permissions": {
+                "deny": ["a", "b", "c", "d", "e"],
+                "ask": ["a", "b", "c", "d"],
+            },
         }
 
     def test_ok_when_all_correct(self) -> None:

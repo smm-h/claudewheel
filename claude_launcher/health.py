@@ -94,6 +94,11 @@ def check_shared_symlinks() -> HealthResult:
         pc_target = shared / "paste-cache"
         if not pc.is_symlink() or pc.resolve() != pc_target.resolve():
             broken.append(f"{name}/paste-cache")
+        # skills -> ~/.claude-common/skills
+        sk = pdir / "skills"
+        sk_target = Path.home() / ".claude-common" / "skills"
+        if sk_target.is_dir() and (not sk.is_symlink() or sk.resolve() != sk_target.resolve()):
+            broken.append(f"{name}/skills")
 
     if broken:
         return HealthResult(False, "shared-symlinks", f"broken: {', '.join(broken)}")
@@ -198,6 +203,11 @@ def check_settings_defaults() -> HealthResult:
             issues.append(f"{name}: cleanupPeriodDays < 365 ({cpd!r})")
         if s.get("autoMemoryEnabled") is not False:
             issues.append(f"{name}: autoMemoryEnabled != false")
+        perms = s.get("permissions", {})
+        if len(perms.get("deny", [])) < 5:
+            issues.append(f"{name}: fewer than 5 deny rules")
+        if len(perms.get("ask", [])) < 4:
+            issues.append(f"{name}: fewer than 4 ask rules")
 
     if issues:
         return HealthResult(False, "settings-defaults", "; ".join(issues))
@@ -325,6 +335,26 @@ def check_orphan_profiles() -> HealthResult:
     return HealthResult(True, "orphan-profiles", "no orphan dirs found")
 
 
+def check_file_permissions() -> HealthResult:
+    """Verify sensitive files have restrictive permissions (0600)."""
+    profiles = _discover_profiles()
+    issues: list[str] = []
+    for name, pdir in profiles:
+        creds = pdir / ".credentials.json"
+        if creds.exists():
+            mode = oct(creds.stat().st_mode & 0o777)
+            if mode != "0o600":
+                issues.append(f"{name}/.credentials.json is {mode}")
+    tokens_file = Path.home() / ".claudelauncher" / "tokens.json"
+    if tokens_file.exists():
+        mode = oct(tokens_file.stat().st_mode & 0o777)
+        if mode != "0o600":
+            issues.append(f"tokens.json is {mode}")
+    if issues:
+        return HealthResult(False, "file-perms", "; ".join(issues))
+    return HealthResult(True, "file-perms", "all sensitive files 0600")
+
+
 def run_health_check() -> list[HealthResult]:
     """Run all health checks and return results."""
     return [
@@ -337,6 +367,7 @@ def run_health_check() -> list[HealthResult]:
         check_tokens(),
         check_token_expiry(),
         check_orphan_profiles(),
+        check_file_permissions(),
     ]
 
 
