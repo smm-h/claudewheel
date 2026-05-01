@@ -157,6 +157,10 @@ def main() -> None:
                         help="delete options.json so it regenerates from defaults on next run")
     parser.add_argument("--new-profile", action="store_true",
                         help="run the profile creation wizard")
+    parser.add_argument("--delete-profile", metavar="NAME", default=None,
+                        help="delete a registered profile and all associated data")
+    parser.add_argument("--force", action="store_true",
+                        help="force deletion even if sessions appear active (for --delete-profile)")
     parser.add_argument("--show", action="store_true",
                         help="print current selections and exit")
     parser.add_argument("--migrate", nargs="+", metavar="ARG",
@@ -264,6 +268,11 @@ def main() -> None:
             return
         create_profile(result, cfg)
         return
+
+    # --delete-profile <name>: delete a profile and all associated data
+    if args.delete_profile:
+        from .profile_ops import do_delete_profile
+        sys.exit(do_delete_profile(args.delete_profile, force=args.force))
 
     # --show: print last_config + segment summary, then exit
     if args.show:
