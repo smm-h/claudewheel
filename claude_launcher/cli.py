@@ -165,8 +165,10 @@ def main() -> None:
                         help="print current selections and exit")
     parser.add_argument("--migrate", nargs="+", metavar="ARG",
                         help="migrate sessions: SRC DST [UUID_SUBSTR]")
+    parser.add_argument("--gc", action="store_true",
+                        help="garbage-collect stale sentinels, compact origins, report stats")
     parser.add_argument("--dry-run", action="store_true",
-                        help="preview changes without writing (for --migrate)")
+                        help="preview changes without writing (for --migrate, --gc)")
 
     # Mutually exclusive session passthrough flags (handed to claude as -c / -r)
     # --resume optionally accepts a session ID; without one, Claude opens its picker.
@@ -293,6 +295,12 @@ def main() -> None:
         except (FileNotFoundError, OSError) as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
+        return
+
+    # --gc: garbage-collect stale data
+    if args.gc:
+        from .gc import run_gc
+        run_gc(dry_run=args.dry_run)
         return
 
     # Collect segment value overrides from CLI args
