@@ -1,4 +1,4 @@
-"""All DEFAULT_* configuration dicts for ClaudeLauncher."""
+"""All DEFAULT_* configuration dicts for claudewheel."""
 
 DEFAULT_CONFIG = {
     "theme": "dark",

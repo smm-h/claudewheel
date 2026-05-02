@@ -1,4 +1,4 @@
-"""Garbage collection for ClaudeLauncher shared infrastructure."""
+"""Garbage collection for claudewheel shared infrastructure."""
 from __future__ import annotations
 import fcntl
 import json
