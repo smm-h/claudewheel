@@ -1,4 +1,4 @@
-"""Tests for claude_launcher.gc — garbage collection for shared infrastructure."""
+"""Tests for claudewheel.gc — garbage collection for shared infrastructure."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from claude_launcher import gc
-from claude_launcher.gc import (
+from claudewheel import gc
+from claudewheel.gc import (
     _clean_sentinels,
     _compact_origins,
     _known_profiles,
